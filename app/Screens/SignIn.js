@@ -117,20 +117,7 @@ const SignUp = () => {
     </Pressable>
   );
 
-  const renderDayItem = ({ item }) => (
-    <Pressable
-      style={[styles.gridButton, day === item && styles.selectedGridButton]}
-      onPress={() => {
-        setDay(item);
-        setIsDayModalVisible(false);
-      }}
-    >
-      <Text style={[styles.gridButtonText, day === item && styles.selectedText]}>
-        {item}
-      </Text>
-    </Pressable>
-  );
-
+  
   return (
     <View style={styles.container}>
       {/* Background Image */}
