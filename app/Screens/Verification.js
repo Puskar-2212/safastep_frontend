@@ -48,16 +48,30 @@ const Verification = () => {
     { label: "🇫🇷 +33", value: "+33" },
   ];
 
-  const handleSendOtp = async () => {
-    if (!mobile) {
+  // Validate phone number
+  const validatePhoneNumber = (phone) => {
+    if (!phone) {
       Alert.alert("Error", "Please enter a valid mobile number.");
-      return;
+      return false;
     }
-
-    if (mobile.length !== 10 || !/^\d{10}$/.test(mobile)) {
+    if (phone.length !== 10 || !/^\d{10}$/.test(phone)) {
       Alert.alert("Error", "Phone number must be exactly 10 digits.");
-      return;
+      return false;
     }
+    return true;
+  };
+
+  // Validate OTP
+  const validateOtp = (otpValue) => {
+    if (otpValue.length !== 6) {
+      Alert.alert("Error", "Please enter a valid 6-digit OTP.");
+      return false;
+    }
+    return true;
+  };
+
+  const handleSendOtp = async () => {
+    if (!validatePhoneNumber(mobile)) return;
 
     setLoading(true);
 
@@ -81,17 +95,14 @@ const Verification = () => {
       }
     } catch (error) {
       console.error("Error sending OTP:", error);
-      Alert.alert("Error", "Failed to send OTP. Please try again.");
+      Alert.alert("Error", "Network error. Please check your connection and try again.");
     } finally {
       setLoading(false);
     }
   };
 
   const handleVerifyOtp = async () => {
-    if (otp.length !== 6) {
-      Alert.alert("Error", "Please enter a valid 6-digit OTP.");
-      return;
-    }
+    if (!validateOtp(otp)) return;
 
     setOtpLoading(true);
 
@@ -106,11 +117,7 @@ const Verification = () => {
           userData: {
             firstName: userData.firstName,
             lastName: userData.lastName,
-            dateOfBirth: {
-              year: userData.dateOfBirth.year,
-              month: userData.dateOfBirth.month,
-              day: userData.dateOfBirth.day,
-            },
+            dateOfBirth: userData.dateOfBirth,
             pin: userData.pin,
           },
         }),
@@ -118,66 +125,67 @@ const Verification = () => {
 
       const verifyData = await verifyResponse.json();
 
-      if (verifyResponse.ok && verifyData.success) {
-        console.log("OTP verified successfully.");
-
-        // Step 2: Store user data in the database
-        const dataToStore = {
-          firstName: userData.firstName,
-          lastName: userData.lastName,
-          dateOfBirth: {
-            year: userData.dateOfBirth.year,
-            month: userData.dateOfBirth.month,
-            day: userData.dateOfBirth.day,
-          },
-          pin: userData.pin,
-          mobile: `${countryCode}${mobile}`,
-        };
-
-        console.log("Data being sent to backend:", dataToStore);
-
-        const signupResponse = await fetch(`${BASE_URL}/signup`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(dataToStore),
-        });
-
-        const signupResult = await signupResponse.json();
-
-        if (signupResponse.ok) {
-          console.log("User data stored successfully.");
-          
-          Alert.alert(
-            "Success",
-            "Account created successfully! Please login to continue.",
-            [
-              {
-                text: "OK",
-                onPress: () => router.push("/Screens/Login"),
-              },
-            ]
-          );
-        } else {
-          console.error("Signup failed:", signupResult.detail);
-
-          if (signupResult.detail === "Mobile number already registered.") {
-            Alert.alert("Error", "This mobile number is already registered.");
-          } else {
-            Alert.alert(
-              "Error",
-              signupResult.detail || "Failed to create account."
-            );
-          }
-        }
-      } else {
+      if (!verifyResponse.ok || !verifyData.success) {
         Alert.alert("Error", verifyData.message || "OTP verification failed.");
+        return;
+      }
+
+      console.log("OTP verified successfully.");
+
+      // Step 2: Store user data in the database
+      const dataToStore = {
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        dateOfBirth: userData.dateOfBirth,
+        pin: userData.pin,
+        mobile: `${countryCode}${mobile}`,
+      };
+
+      console.log("Data being sent to backend:", dataToStore);
+
+      const signupResponse = await fetch(`${BASE_URL}/signup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(dataToStore),
+      });
+
+      const signupResult = await signupResponse.json();
+
+      if (signupResponse.ok) {
+        console.log("User data stored successfully.");
+        
+        Alert.alert(
+          "Success",
+          "Account created successfully! Please login to continue.",
+          [
+            {
+              text: "OK",
+              onPress: () => router.push("/Screens/Login"),
+            },
+          ]
+        );
+      } else {
+        console.error("Signup failed:", signupResult.detail);
+
+        if (signupResult.detail === "Mobile number already registered.") {
+          Alert.alert("Error", "This mobile number is already registered. Please login instead.");
+        } else {
+          Alert.alert(
+            "Error",
+            signupResult.detail || "Failed to create account. Please try again."
+          );
+        }
       }
     } catch (error) {
       console.error("Error during OTP verification or signup:", error);
-      Alert.alert("Error", "An error occurred. Please try again.");
+      Alert.alert("Error", "Network error occurred. Please check your connection and try again.");
     } finally {
       setOtpLoading(false);
     }
+  };
+
+  const handleBackToSignup = () => {
+    router.push("./SignIn");
   };
 
   return (
@@ -189,6 +197,7 @@ const Verification = () => {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         <View style={styles.overlay}>
           <Animatable.View
@@ -271,6 +280,7 @@ const Verification = () => {
                       }}
                       maxLength={10}
                       style={styles.phoneInput}
+                      editable={!loading}
                     />
                   </View>
                 </View>
@@ -309,6 +319,8 @@ const Verification = () => {
                     value={otp}
                     onChangeText={setOtp}
                     style={styles.otpInput}
+                    editable={!otpLoading}
+                    autoFocus
                   />
                 </View>
 
@@ -343,7 +355,7 @@ const Verification = () => {
             )}
 
             <Pressable
-              onPress={() => router.push("./SignIn")}
+              onPress={handleBackToSignup}
               style={styles.backButton}
             >
               <MaterialIcons name="arrow-back" size={20} color="#10B981" />
@@ -356,61 +368,64 @@ const Verification = () => {
   );
 };
 
+export default Verification;
+
 const styles = StyleSheet.create({
   background: {
     flex: 1,
+    width: "100%",
+    height: "100%",
   },
   scrollContent: {
     flexGrow: 1,
   },
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.65)",
-    paddingVertical: 40,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
     paddingHorizontal: 20,
-    justifyContent: "center",
+    paddingVertical: 40,
   },
   headerContainer: {
     alignItems: "center",
-    marginBottom: 32,
+    marginBottom: 30,
   },
   iconContainer: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: "rgba(236, 253, 245, 0.95)",
+    backgroundColor: "rgba(16, 185, 129, 0.2)",
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 20,
   },
   headerTitle: {
     fontSize: 28,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    marginBottom: 8,
+    fontWeight: "bold",
+    color: "#fff",
+    marginBottom: 10,
     textAlign: "center",
   },
   headerSubtitle: {
-    fontSize: 15,
-    color: "rgba(255, 255, 255, 0.9)",
+    fontSize: 14,
+    color: "#D1D5DB",
     textAlign: "center",
     paddingHorizontal: 20,
   },
   formContainer: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 24,
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    borderRadius: 20,
     padding: 24,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 5,
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
   stepIndicator: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 24,
+    marginBottom: 20,
   },
   stepDot: {
     width: 40,
@@ -426,9 +441,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#E5E7EB",
   },
   stepNumber: {
+    color: "#fff",
     fontSize: 16,
-    fontWeight: "700",
-    color: "#FFFFFF",
+    fontWeight: "bold",
   },
   stepNumberInactive: {
     color: "#9CA3AF",
@@ -437,28 +452,28 @@ const styles = StyleSheet.create({
     width: 60,
     height: 2,
     backgroundColor: "#E5E7EB",
-    marginHorizontal: 8,
+    marginHorizontal: 10,
   },
   stepLabel: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#111827",
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#1F2937",
+    marginBottom: 8,
     textAlign: "center",
-    marginBottom: 16,
   },
   description: {
-    fontSize: 15,
+    fontSize: 14,
     color: "#6B7280",
-    textAlign: "center",
     marginBottom: 24,
-    lineHeight: 22,
+    textAlign: "center",
+    lineHeight: 20,
   },
   phoneHighlight: {
-    fontWeight: "700",
+    fontWeight: "bold",
     color: "#10B981",
   },
   inputGroup: {
-    marginBottom: 24,
+    marginBottom: 20,
   },
   label: {
     fontSize: 14,
@@ -468,75 +483,78 @@ const styles = StyleSheet.create({
   },
   phoneInputContainer: {
     flexDirection: "row",
-    gap: 8,
+    alignItems: "center",
+    gap: 10,
   },
   countryCodeContainer: {
-    width: "28%",
+    width: 100,
+    height: 50,
+    borderWidth: 1,
+    borderColor: "#D1D5DB",
+    borderRadius: 10,
+    backgroundColor: "#F9FAFB",
+    justifyContent: "center",
+    paddingHorizontal: 8,
   },
   countryCodeInput: {
     fontSize: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    borderRadius: 12,
-    color: "#111827",
-    backgroundColor: "#F9FAFB",
-    height: 52,
+    color: "#1F2937",
+    fontWeight: "500",
   },
   phoneInput: {
     flex: 1,
-    height: 52,
-    backgroundColor: "#F9FAFB",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    fontSize: 15,
-    color: "#111827",
+    height: 50,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: "#D1D5DB",
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    fontSize: 16,
+    backgroundColor: "#F9FAFB",
+    color: "#1F2937",
   },
   otpInput: {
     height: 56,
-    backgroundColor: "#F9FAFB",
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    fontSize: 20,
-    color: "#111827",
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: "#D1D5DB",
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    fontSize: 24,
     letterSpacing: 8,
     textAlign: "center",
+    backgroundColor: "#F9FAFB",
+    color: "#1F2937",
     fontWeight: "600",
   },
   button: {
-    backgroundColor: "#10B981",
-    height: 56,
-    borderRadius: 14,
     flexDirection: "row",
+    backgroundColor: "#10B981",
+    borderRadius: 12,
+    paddingVertical: 16,
     alignItems: "center",
     justifyContent: "center",
+    marginTop: 8,
     gap: 8,
     shadowColor: "#10B981",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 4,
-    marginBottom: 16,
   },
   disabledButton: {
     backgroundColor: "#9CA3AF",
     shadowOpacity: 0,
+    elevation: 0,
   },
   buttonText: {
-    color: "#FFFFFF",
+    color: "#fff",
     fontSize: 16,
-    fontWeight: "700",
+    fontWeight: "600",
   },
   resendContainer: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 16,
+    marginTop: 16,
   },
   resendText: {
     fontSize: 14,
@@ -548,20 +566,18 @@ const styles = StyleSheet.create({
   resendLink: {
     fontSize: 14,
     color: "#10B981",
-    fontWeight: "700",
+    fontWeight: "600",
   },
   backButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    marginTop: 20,
     gap: 8,
-    paddingVertical: 12,
   },
   backText: {
-    fontSize: 14,
     color: "#10B981",
+    fontSize: 14,
     fontWeight: "600",
   },
 });
-
-export default Verification;
