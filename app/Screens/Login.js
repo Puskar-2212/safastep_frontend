@@ -18,12 +18,7 @@ import * as Animatable from "react-native-animatable";
 import RNPickerSelect from "react-native-picker-select";
 import { BASE_URL } from "../config";
 
-// Splash Screen Component
-const SplashScreen = ({ onFinish }) => {
-  useEffect(() => {
-    const timer = setTimeout(() => onFinish(), 3000);
-    return () => clearTimeout(timer);
-  }, []);
+
 
   return (
     <View style={styles.splashContainer}>
