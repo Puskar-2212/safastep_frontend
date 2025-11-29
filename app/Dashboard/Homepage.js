@@ -111,51 +111,60 @@ const Homepage = () => {
 
   const loadPosts = async () => {
     try {
-      // Mock data for now - replace with actual API call
-      const mockPosts = [
-        {
-          id: 1,
-          user: { name: "Sarah Johnson", avatar: null },
-          image: require("../../assets/images/roleImg1.webp"),
-          caption: "Planted 5 trees today in my neighborhood! 🌳",
-          description: "Every small action counts towards a greener future. Join me in making our community more sustainable!",
-          impact: { co2: "2.5 kg", trees: "5", category: "Planting" },
-          likes: 124,
-          comments: 18,
-          timeAgo: "2 hours ago",
-          liked: false,
-        },
-        {
-          id: 2,
-          user: { name: "Mike Chen", avatar: null },
-          image: require("../../assets/images/roleImg2.jpeg"),
-          caption: "Beach cleanup drive completed! 🌊",
-          description: "Collected 50kg of plastic waste with my community group. Together we can make a difference!",
-          impact: { co2: "8.2 kg", waste: "50 kg", category: "Cleanup" },
-          likes: 89,
-          comments: 12,
-          timeAgo: "5 hours ago",
-          liked: true,
-        },
-        {
-          id: 3,
-          user: { name: "Emma Davis", avatar: null },
-          image: require("../../assets/images/roleImg3.jpg"),
-          caption: "Started my composting journey! 🌱",
-          description: "Reducing food waste one step at a time. Small changes lead to big impacts!",
-          impact: { co2: "1.8 kg", waste: "12 kg", category: "Recycling" },
-          likes: 156,
-          comments: 24,
-          timeAgo: "1 day ago",
-          liked: false,
-        },
-      ];
-      setPosts(mockPosts);
+      const mobile = await AsyncStorage.getItem("mobile");
+      
+      // Fetch posts from backend
+      const response = await fetch(`${BASE_URL}/posts`);
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        // Transform backend posts to match frontend format
+        const transformedPosts = result.posts.map(post => {
+          // Calculate time ago
+          const timeAgo = getTimeAgo(post.createdAt);
+          
+          return {
+            id: post._id,
+            user: { 
+              name: post.userName, 
+              avatar: post.userProfilePicture 
+            },
+            image: { uri: post.imageUrl },
+            caption: post.caption,
+            description: post.caption,
+            impact: { 
+              category: post.category,
+              co2: "0 kg" // You can calculate this based on category
+            },
+            likes: post.likesCount,
+            comments: post.commentsCount,
+            timeAgo: timeAgo,
+            liked: post.likes.includes(mobile),
+            categoryId: post.categoryId,
+            mobile: post.mobile
+          };
+        });
+        
+        setPosts(transformedPosts);
+      }
     } catch (error) {
       console.error("Error loading posts:", error);
+      // Keep empty array on error
+      setPosts([]);
     } finally {
       setRefreshing(false);
     }
+  };
+
+  // Helper function to calculate time ago
+  const getTimeAgo = (timestamp) => {
+    const seconds = Math.floor(Date.now() / 1000 - timestamp);
+    
+    if (seconds < 60) return "Just now";
+    if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
+    if (seconds < 604800) return `${Math.floor(seconds / 86400)} days ago`;
+    return `${Math.floor(seconds / 604800)} weeks ago`;
   };
 
   const onRefresh = () => {
@@ -164,12 +173,32 @@ const Homepage = () => {
     loadPosts();
   };
 
-  const handleLike = (postId) => {
-    setPosts(posts.map(post => 
-      post.id === postId 
-        ? { ...post, liked: !post.liked, likes: post.liked ? post.likes - 1 : post.likes + 1 }
-        : post
-    ));
+  const handleLike = async (postId) => {
+    try {
+      const mobile = await AsyncStorage.getItem("mobile");
+      
+      const formData = new FormData();
+      formData.append('mobile', mobile);
+
+      const response = await fetch(`${BASE_URL}/posts/${postId}/like`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        // Update local state
+        setPosts(posts.map(post => 
+          post.id === postId 
+            ? { ...post, liked: result.liked, likes: result.likesCount }
+            : post
+        ));
+      }
+    } catch (error) {
+      console.error('Error liking post:', error);
+      Alert.alert('Error', 'Failed to like post');
+    }
   };
 
   const pickImage = async () => {
@@ -202,32 +231,54 @@ const Homepage = () => {
       return;
     }
 
+    if (!selectedCategory) {
+      Alert.alert('Missing Category', 'Please select a category');
+      return;
+    }
+
     setUploading(true);
 
     try {
-      // TODO: Implement actual API call to create post
-      const newPost = {
-        id: posts.length + 1,
-        user: { 
-          name: `${userData?.firstName} ${userData?.lastName}`, 
-          avatar: null 
-        },
-        image: { uri: newPostImage },
-        caption: newPostCaption,
-        category: selectedCategory,
-        impact: { category: selectedCategory.name },
-        likes: 0,
-        comments: 0,
-        timeAgo: "Just now",
-        liked: false,
+      const mobile = await AsyncStorage.getItem("mobile");
+      
+      // Create FormData for multipart/form-data request
+      const formData = new FormData();
+      formData.append('mobile', mobile);
+      formData.append('caption', newPostCaption);
+      formData.append('category', selectedCategory.name);
+      formData.append('categoryId', selectedCategory.id);
+      
+      // Add image file
+      const imageFile = {
+        uri: newPostImage,
+        type: 'image/jpeg',
+        name: `post_${Date.now()}.jpg`,
       };
+      formData.append('image', imageFile);
 
-      setPosts([newPost, ...posts]);
-      setShowCreatePost(false);
-      setNewPostImage(null);
-      setNewPostCaption('');
-      setSelectedCategory(null);
-      Alert.alert('Success', 'Your eco-action has been shared!');
+      // Call backend API
+      const response = await fetch(`${BASE_URL}/posts`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        // Reload posts to show the new one
+        await loadPosts();
+        
+        setShowCreatePost(false);
+        setNewPostImage(null);
+        setNewPostCaption('');
+        setSelectedCategory(null);
+        Alert.alert('Success', 'Your eco-action has been shared!');
+      } else {
+        Alert.alert('Error', result.detail || 'Failed to create post');
+      }
     } catch (error) {
       console.error('Error creating post:', error);
       Alert.alert('Error', 'Failed to create post');
