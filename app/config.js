@@ -1,4 +1,6 @@
 // config.js
+// Paste your ngrok URL here every time you run ngrok
 export const BASE_URL = "https://fulgorous-unhandsome-katia.ngrok-free.dev";
 
-// export const BASE_URL = 'http://127.0.0.1:8000';npx expo upgrade 53
+// Alternative: Use local IP if on same network (no ngrok needed)
+// export const BASE_URL = 'http://192.168.1.6:8000';
