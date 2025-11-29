@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -9,34 +9,86 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
-} from 'react-native';
-import { MaterialIcons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Animatable from 'react-native-animatable';
-import { BASE_URL } from '../config';
-import { LinearGradient } from 'expo-linear-gradient';
+  TextInput,
+  Modal,
+} from "react-native";
+import { MaterialIcons } from "@expo/vector-icons";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Animatable from "react-native-animatable";
+import * as ImagePicker from "expo-image-picker";
+import { BASE_URL } from "../config";
 
 const Homepage = () => {
   const params = useLocalSearchParams();
   const router = useRouter();
-  
+
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [todaySteps, setTodaySteps] = useState(2847);
-  const [carbonSaved, setCarbonSaved] = useState(0);
+  const [posts, setPosts] = useState([]);
+  const [activeTab, setActiveTab] = useState('home');
+  const [showCategorySelection, setShowCategorySelection] = useState(false);
+  const [showCreatePost, setShowCreatePost] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [newPostImage, setNewPostImage] = useState(null);
+  const [newPostCaption, setNewPostCaption] = useState('');
+  const [uploading, setUploading] = useState(false);
+
+  const categories = [
+    {
+      id: 'transportation',
+      name: 'Transportation',
+      icon: 'directions-bus',
+      color: '#3B82F6',
+      bgColor: '#DBEAFE',
+      description: 'Eco-friendly commute & travel'
+    },
+    {
+      id: 'plantation',
+      name: 'Plantation',
+      icon: 'park',
+      color: '#10B981',
+      bgColor: '#D1FAE5',
+      description: 'Tree planting & gardening'
+    },
+    {
+      id: 'recycling',
+      name: 'Recycling',
+      icon: 'recycling',
+      color: '#8B5CF6',
+      bgColor: '#EDE9FE',
+      description: 'Reuse & recycle materials'
+    },
+    {
+      id: 'waste-management',
+      name: 'Waste Management',
+      icon: 'delete-outline',
+      color: '#F59E0B',
+      bgColor: '#FEF3C7',
+      description: 'Proper waste disposal'
+    },
+    {
+      id: 'energy',
+      name: 'Energy Conservation',
+      icon: 'bolt',
+      color: '#EF4444',
+      bgColor: '#FEE2E2',
+      description: 'Save energy & resources'
+    },
+  ];
 
   useEffect(() => {
     loadUserData();
+    loadPosts();
   }, []);
 
   const loadUserData = async () => {
     try {
-      const mobile = params.mobile || await AsyncStorage.getItem('mobile');
-      
+      const mobile = params.mobile || (await AsyncStorage.getItem("mobile"));
+
       if (!mobile) {
-        router.push('/Screens/Login');
+        router.push("/Screens/Login");
         return;
       }
 
@@ -45,15 +97,63 @@ const Homepage = () => {
 
       if (response.ok && result.success) {
         setUserData(result.user);
-        setCarbonSaved(result.user.carbonFootprint || 0);
+        await AsyncStorage.setItem("mobile", mobile);
       } else {
-        Alert.alert('Error', 'Failed to load user data');
+        Alert.alert("Error", "Failed to load user data");
       }
     } catch (error) {
-      console.error('Error loading user data:', error);
-      Alert.alert('Error', 'Failed to connect to server');
+      console.error("Error loading user data:", error);
+      Alert.alert("Error", "Failed to connect to server");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadPosts = async () => {
+    try {
+      // Mock data for now - replace with actual API call
+      const mockPosts = [
+        {
+          id: 1,
+          user: { name: "Sarah Johnson", avatar: null },
+          image: require("../../assets/images/roleImg1.webp"),
+          caption: "Planted 5 trees today in my neighborhood! 🌳",
+          description: "Every small action counts towards a greener future. Join me in making our community more sustainable!",
+          impact: { co2: "2.5 kg", trees: "5", category: "Planting" },
+          likes: 124,
+          comments: 18,
+          timeAgo: "2 hours ago",
+          liked: false,
+        },
+        {
+          id: 2,
+          user: { name: "Mike Chen", avatar: null },
+          image: require("../../assets/images/roleImg2.jpeg"),
+          caption: "Beach cleanup drive completed! 🌊",
+          description: "Collected 50kg of plastic waste with my community group. Together we can make a difference!",
+          impact: { co2: "8.2 kg", waste: "50 kg", category: "Cleanup" },
+          likes: 89,
+          comments: 12,
+          timeAgo: "5 hours ago",
+          liked: true,
+        },
+        {
+          id: 3,
+          user: { name: "Emma Davis", avatar: null },
+          image: require("../../assets/images/roleImg3.jpg"),
+          caption: "Started my composting journey! 🌱",
+          description: "Reducing food waste one step at a time. Small changes lead to big impacts!",
+          impact: { co2: "1.8 kg", waste: "12 kg", category: "Recycling" },
+          likes: 156,
+          comments: 24,
+          timeAgo: "1 day ago",
+          liked: false,
+        },
+      ];
+      setPosts(mockPosts);
+    } catch (error) {
+      console.error("Error loading posts:", error);
+    } finally {
       setRefreshing(false);
     }
   };
@@ -61,281 +161,430 @@ const Homepage = () => {
   const onRefresh = () => {
     setRefreshing(true);
     loadUserData();
+    loadPosts();
   };
 
-  const handleLogout = async () => {
-    Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Logout',
-          style: 'destructive',
-          onPress: async () => {
-            await AsyncStorage.removeItem('mobile');
-            router.push('/Screens/Login');
-          },
+  const handleLike = (postId) => {
+    setPosts(posts.map(post => 
+      post.id === postId 
+        ? { ...post, liked: !post.liked, likes: post.liked ? post.likes - 1 : post.likes + 1 }
+        : post
+    ));
+  };
+
+  const pickImage = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled) {
+        setNewPostImage(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      Alert.alert('Error', 'Failed to pick image');
+    }
+  };
+
+  const handleCategorySelect = (category) => {
+    setSelectedCategory(category);
+    setShowCategorySelection(false);
+    setShowCreatePost(true);
+  };
+
+  const handleCreatePost = async () => {
+    if (!newPostImage || !newPostCaption.trim()) {
+      Alert.alert('Missing Information', 'Please add both an image and caption');
+      return;
+    }
+
+    setUploading(true);
+
+    try {
+      // TODO: Implement actual API call to create post
+      const newPost = {
+        id: posts.length + 1,
+        user: { 
+          name: `${userData?.firstName} ${userData?.lastName}`, 
+          avatar: null 
         },
-      ]
-    );
+        image: { uri: newPostImage },
+        caption: newPostCaption,
+        category: selectedCategory,
+        impact: { category: selectedCategory.name },
+        likes: 0,
+        comments: 0,
+        timeAgo: "Just now",
+        liked: false,
+      };
+
+      setPosts([newPost, ...posts]);
+      setShowCreatePost(false);
+      setNewPostImage(null);
+      setNewPostCaption('');
+      setSelectedCategory(null);
+      Alert.alert('Success', 'Your eco-action has been shared!');
+    } catch (error) {
+      console.error('Error creating post:', error);
+      Alert.alert('Error', 'Failed to create post');
+    } finally {
+      setUploading(false);
+    }
   };
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#10B981" />
-        <Text style={styles.loadingText}>Loading your journey...</Text>
+        <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>SafaStep</Text>
+        <View style={styles.headerIcons}>
+          <Pressable style={styles.headerIcon}>
+            <MaterialIcons name="notifications-none" size={26} color="#111827" />
+          </Pressable>
+        </View>
+      </View>
+
+      {/* Feed */}
       <ScrollView
+        style={styles.feed}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {/* Header */}
-        <LinearGradient
-          colors={['#10B981', '#059669']}
-          style={styles.header}
-        >
-          <View style={styles.headerTop}>
-            <View>
-              <Text style={styles.greeting}>Welcome back,</Text>
-              <Text style={styles.userName}>
-                {userData?.firstName} {userData?.lastName}
-              </Text>
-            </View>
-            <Pressable onPress={handleLogout} style={styles.logoutButton}>
-              <MaterialIcons name="logout" size={24} color="#fff" />
-            </Pressable>
-          </View>
-
-          <View style={styles.headerStats}>
-            <Animatable.View animation="fadeInLeft" delay={200} style={styles.statCard}>
-              <MaterialIcons name="directions-walk" size={32} color="#fff" />
-              <Text style={styles.statNumber}>{todaySteps.toLocaleString()}</Text>
-              <Text style={styles.statLabel}>Steps Today</Text>
-            </Animatable.View>
-
-            <Animatable.View animation="fadeInRight" delay={400} style={styles.statCard}>
-              <MaterialIcons name="eco" size={32} color="#fff" />
-              <Text style={styles.statNumber}>{carbonSaved.toFixed(2)} kg</Text>
-              <Text style={styles.statLabel}>CO₂ Saved</Text>
-            </Animatable.View>
-          </View>
-        </LinearGradient>
-
-        {/* Main Content */}
-        <View style={styles.content}>
-          {/* Daily Goal Card */}
-          <Animatable.View animation="fadeInUp" delay={600} style={styles.goalCard}>
-            <View style={styles.goalHeader}>
-              <View style={styles.goalTitleContainer}>
-                <MaterialIcons name="flag" size={24} color="#10B981" />
-                <Text style={styles.goalTitle}>Daily Goal</Text>
-              </View>
-              <Text style={styles.goalPercentage}>57%</Text>
-            </View>
-            
-            <View style={styles.progressBarContainer}>
-              <View style={[styles.progressBar, { width: '57%' }]} />
-            </View>
-            
-            <View style={styles.goalDetails}>
-              <Text style={styles.goalText}>
-                <Text style={styles.goalHighlight}>{todaySteps.toLocaleString()}</Text> / 5,000 steps
-              </Text>
-              <Text style={styles.goalSubtext}>Keep going! You're doing great!</Text>
-            </View>
-          </Animatable.View>
-
-          {/* Impact Stats */}
-          <Animatable.View animation="fadeInUp" delay={800}>
-            <Text style={styles.sectionTitle}>Your Impact</Text>
-            
-            <View style={styles.impactGrid}>
-              <View style={styles.impactCard}>
-                <View style={[styles.impactIconContainer, { backgroundColor: '#DBEAFE' }]}>
-                  <MaterialIcons name="terrain" size={28} color="#3B82F6" />
-                </View>
-                <Text style={styles.impactNumber}>12.4 km</Text>
-                <Text style={styles.impactLabel}>Distance Walked</Text>
-              </View>
-
-              <View style={styles.impactCard}>
-                <View style={[styles.impactIconContainer, { backgroundColor: '#FEF3C7' }]}>
-                  <MaterialIcons name="local-fire-department" size={28} color="#F59E0B" />
-                </View>
-                <Text style={styles.impactNumber}>248</Text>
-                <Text style={styles.impactLabel}>Calories Burned</Text>
-              </View>
-
-              <View style={styles.impactCard}>
-                <View style={[styles.impactIconContainer, { backgroundColor: '#DCFCE7' }]}>
-                  <MaterialIcons name="forest" size={28} color="#10B981" />
-                </View>
-                <Text style={styles.impactNumber}>0.8</Text>
-                <Text style={styles.impactLabel}>Trees Equivalent</Text>
-              </View>
-
-              <View style={styles.impactCard}>
-                <View style={[styles.impactIconContainer, { backgroundColor: '#E0E7FF' }]}>
-                  <MaterialIcons name="timer" size={28} color="#6366F1" />
-                </View>
-                <Text style={styles.impactNumber}>42 min</Text>
-                <Text style={styles.impactLabel}>Active Time</Text>
-              </View>
-            </View>
-          </Animatable.View>
-
-          {/* Quick Actions */}
-          <Animatable.View animation="fadeInUp" delay={1000}>
-            <Text style={styles.sectionTitle}>Quick Actions</Text>
-            
-            <View style={styles.actionGrid}>
-              <Pressable style={styles.actionCard}>
-                <View style={[styles.actionIcon, { backgroundColor: '#ECFDF5' }]}>
-                  <MaterialIcons name="add-circle" size={32} color="#10B981" />
-                </View>
-                <Text style={styles.actionText}>Log Activity</Text>
-              </Pressable>
-
-              <Pressable style={styles.actionCard}>
-                <View style={[styles.actionIcon, { backgroundColor: '#FEF3C7' }]}>
-                  <MaterialIcons name="leaderboard" size={32} color="#F59E0B" />
-                </View>
-                <Text style={styles.actionText}>Leaderboard</Text>
-              </Pressable>
-
-              <Pressable style={styles.actionCard}>
-                <View style={[styles.actionIcon, { backgroundColor: '#DBEAFE' }]}>
-                  <MaterialIcons name="emoji-events" size={32} color="#3B82F6" />
-                </View>
-                <Text style={styles.actionText}>Challenges</Text>
-              </Pressable>
-
-              <Pressable style={styles.actionCard}>
-                <View style={[styles.actionIcon, { backgroundColor: '#E0E7FF' }]}>
-                  <MaterialIcons name="insights" size={32} color="#6366F1" />
-                </View>
-                <Text style={styles.actionText}>Insights</Text>
-              </Pressable>
-            </View>
-          </Animatable.View>
-
-          {/* Eco Tips */}
-          <Animatable.View animation="fadeInUp" delay={1200} style={styles.tipCard}>
-            <View style={styles.tipHeader}>
-              <MaterialIcons name="lightbulb" size={24} color="#F59E0B" />
-              <Text style={styles.tipTitle}>Eco Tip of the Day</Text>
-            </View>
-            <Text style={styles.tipText}>
-              Walking 10,000 steps a day can save approximately 0.5 kg of CO₂ compared to driving. Keep up the great work!
+        {/* Welcome Banner */}
+        <View style={styles.welcomeBanner}>
+          <View style={styles.bannerContent}>
+            <Text style={styles.bannerTitle}>
+              Welcome, {userData?.firstName}! 👋
             </Text>
-          </Animatable.View>
+            <Text style={styles.bannerSubtitle}>
+              Discover eco-actions from your community
+            </Text>
+          </View>
+          <View style={styles.bannerIcon}>
+            <MaterialIcons name="eco" size={40} color="#10B981" />
+          </View>
+        </View>
 
-          {/* Weekly Progress */}
-          <Animatable.View animation="fadeInUp" delay={1400}>
-            <Text style={styles.sectionTitle}>This Week</Text>
-            
-            <View style={styles.weekCard}>
-              <View style={styles.weekDays}>
-                {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, index) => (
-                  <View key={index} style={styles.dayContainer}>
-                    <View style={styles.dayBarContainer}>
-                      <View
-                        style={[
-                          styles.dayBar,
-                          {
-                            height: `${[80, 65, 90, 75, 100, 45, 30][index]}%`,
-                            backgroundColor: index === 6 ? '#10B981' : '#D1FAE5',
-                          },
-                        ]}
-                      />
+        {/* Posts Grid */}
+        <View style={styles.postsContainer}>
+          {posts.map((post, index) => (
+            <Animatable.View
+              key={post.id}
+              animation="fadeInUp"
+              duration={600}
+              delay={index * 100}
+              style={styles.ecoCard}
+            >
+              {/* Category Badge */}
+              <View style={styles.categoryBadge}>
+                <MaterialIcons name="eco" size={16} color="#10B981" />
+                <Text style={styles.categoryText}>{post.impact.category}</Text>
+              </View>
+
+              {/* Image with Overlay */}
+              <View style={styles.imageContainer}>
+                <Image source={post.image} style={styles.cardImage} resizeMode="cover" />
+                <View style={styles.imageOverlay}>
+                  <View style={styles.userBadge}>
+                    <View style={styles.smallAvatar}>
+                      <MaterialIcons name="person" size={16} color="#fff" />
                     </View>
-                    <Text style={[styles.dayLabel, index === 6 && styles.dayLabelActive]}>
-                      {day}
-                    </Text>
+                    <Text style={styles.overlayUserName}>{post.user.name}</Text>
                   </View>
-                ))}
-              </View>
-              
-              <View style={styles.weekStats}>
-                <View style={styles.weekStatItem}>
-                  <MaterialIcons name="trending-up" size={20} color="#10B981" />
-                  <Text style={styles.weekStatText}>
-                    <Text style={styles.weekStatNumber}>+15%</Text> vs last week
-                  </Text>
                 </View>
-              </View>
-            </View>
-          </Animatable.View>
-
-          {/* Achievements Preview */}
-          <Animatable.View animation="fadeInUp" delay={1600}>
-            <View style={styles.achievementHeader}>
-              <Text style={styles.sectionTitle}>Recent Achievements</Text>
-              <Pressable>
-                <Text style={styles.viewAllText}>View All</Text>
-              </Pressable>
-            </View>
-            
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.achievementScroll}>
-              <View style={styles.achievementCard}>
-                <View style={styles.achievementBadge}>
-                  <MaterialIcons name="emoji-events" size={40} color="#F59E0B" />
-                </View>
-                <Text style={styles.achievementName}>First Steps</Text>
-                <Text style={styles.achievementDesc}>Logged your first walk</Text>
               </View>
 
-              <View style={styles.achievementCard}>
-                <View style={styles.achievementBadge}>
-                  <MaterialIcons name="local-fire-department" size={40} color="#EF4444" />
-                </View>
-                <Text style={styles.achievementName}>7-Day Streak</Text>
-                <Text style={styles.achievementDesc}>Active for 7 days</Text>
-              </View>
+              {/* Card Content */}
+              <View style={styles.cardContent}>
+                <Text style={styles.cardTitle}>{post.caption}</Text>
+                <Text style={styles.cardDescription} numberOfLines={2}>
+                  {post.description}
+                </Text>
 
-              <View style={styles.achievementCard}>
-                <View style={styles.achievementBadge}>
-                  <MaterialIcons name="eco" size={40} color="#10B981" />
+                {/* Impact Stats */}
+                <View style={styles.impactContainer}>
+                  <View style={styles.impactBadge}>
+                    <MaterialIcons name="cloud" size={18} color="#10B981" />
+                    <Text style={styles.impactText}>{post.impact.co2} CO₂</Text>
+                  </View>
+                  {post.impact.trees && (
+                    <View style={styles.impactBadge}>
+                      <MaterialIcons name="park" size={18} color="#10B981" />
+                      <Text style={styles.impactText}>{post.impact.trees} trees</Text>
+                    </View>
+                  )}
+                  {post.impact.waste && (
+                    <View style={styles.impactBadge}>
+                      <MaterialIcons name="delete-outline" size={18} color="#10B981" />
+                      <Text style={styles.impactText}>{post.impact.waste}</Text>
+                    </View>
+                  )}
                 </View>
-                <Text style={styles.achievementName}>Eco Warrior</Text>
-                <Text style={styles.achievementDesc}>Saved 1kg CO₂</Text>
+
+                {/* Actions Row */}
+                <View style={styles.cardActions}>
+                  <Pressable 
+                    style={styles.cardActionButton}
+                    onPress={() => handleLike(post.id)}
+                  >
+                    <MaterialIcons 
+                      name={post.liked ? "favorite" : "favorite-border"} 
+                      size={22} 
+                      color={post.liked ? "#EF4444" : "#6B7280"} 
+                    />
+                    <Text style={[styles.actionText, post.liked && styles.actionTextLiked]}>
+                      {post.likes}
+                    </Text>
+                  </Pressable>
+
+                  <Pressable style={styles.cardActionButton}>
+                    <MaterialIcons name="chat-bubble-outline" size={20} color="#6B7280" />
+                    <Text style={styles.actionText}>{post.comments}</Text>
+                  </Pressable>
+
+                  <Pressable style={styles.cardActionButton}>
+                    <MaterialIcons name="share" size={20} color="#6B7280" />
+                  </Pressable>
+
+                  <View style={styles.timeContainer}>
+                    <MaterialIcons name="access-time" size={14} color="#9CA3AF" />
+                    <Text style={styles.timeText}>{post.timeAgo}</Text>
+                  </View>
+                </View>
               </View>
-            </ScrollView>
-          </Animatable.View>
+            </Animatable.View>
+          ))}
+        </View>
+
+        <View style={styles.feedEnd}>
+          <View style={styles.feedEndIcon}>
+            <MaterialIcons name="eco" size={48} color="#10B981" />
+          </View>
+          <Text style={styles.feedEndText}>You're all caught up!</Text>
+          <Text style={styles.feedEndSubtext}>
+            Check back later for more inspiring eco-actions
+          </Text>
         </View>
       </ScrollView>
 
       {/* Bottom Navigation */}
       <View style={styles.bottomNav}>
-        <Pressable style={styles.navItem}>
-          <MaterialIcons name="home" size={28} color="#10B981" />
-          <Text style={[styles.navText, styles.navTextActive]}>Home</Text>
+        <Pressable 
+          style={styles.navItem}
+          onPress={() => setActiveTab('home')}
+        >
+          <MaterialIcons 
+            name="home" 
+            size={28} 
+            color={activeTab === 'home' ? "#10B981" : "#9CA3AF"} 
+          />
+          <Text style={[styles.navText, activeTab === 'home' && styles.navTextActive]}>
+            Home
+          </Text>
         </Pressable>
 
-        <Pressable style={styles.navItem}>
-          <MaterialIcons name="analytics" size={28} color="#9CA3AF" />
-          <Text style={styles.navText}>Stats</Text>
+        <Pressable 
+          style={styles.navItem}
+          onPress={() => setActiveTab('explore')}
+        >
+          <MaterialIcons 
+            name="campaign" 
+            size={28} 
+            color={activeTab === 'explore' ? "#10B981" : "#9CA3AF"} 
+          />
+          <Text style={[styles.navText, activeTab === 'explore' && styles.navTextActive]}>
+            Explore
+          </Text>
         </Pressable>
 
-        <Pressable style={styles.navItem}>
-          <MaterialIcons name="group" size={28} color="#9CA3AF" />
-          <Text style={styles.navText}>Community</Text>
+        <Pressable 
+          style={styles.navItem}
+          onPress={() => setShowCategorySelection(true)}
+        >
+          <View style={styles.addButton}>
+            <MaterialIcons name="add" size={28} color="#fff" />
+          </View>
+          <Text style={styles.navText}>Post</Text>
         </Pressable>
 
-        <Pressable style={styles.navItem}>
-          <MaterialIcons name="person" size={28} color="#9CA3AF" />
-          <Text style={styles.navText}>Profile</Text>
+        <Pressable 
+          style={styles.navItem}
+          onPress={() => setActiveTab('calculator')}
+        >
+          <MaterialIcons 
+            name="eco" 
+            size={28} 
+            color={activeTab === 'calculator' ? "#10B981" : "#9CA3AF"} 
+          />
+          <Text style={[styles.navText, activeTab === 'calculator' && styles.navTextActive]}>
+            CO₂ Calc
+          </Text>
+        </Pressable>
+
+        <Pressable 
+          style={styles.navItem}
+          onPress={() => setActiveTab('profile')}
+        >
+          <MaterialIcons 
+            name="person-outline" 
+            size={28} 
+            color={activeTab === 'profile' ? "#10B981" : "#9CA3AF"} 
+          />
+          <Text style={[styles.navText, activeTab === 'profile' && styles.navTextActive]}>
+            Profile
+          </Text>
         </Pressable>
       </View>
+
+      {/* Category Selection Modal */}
+      <Modal
+        visible={showCategorySelection}
+        animationType="slide"
+        transparent={false}
+      >
+        <View style={styles.categoryModalContainer}>
+          {/* Simple Header */}
+          <View style={styles.categoryModalHeader}>
+            <Pressable 
+              style={styles.closeButton}
+              onPress={() => setShowCategorySelection(false)}
+            >
+              <MaterialIcons name="close" size={24} color="#111827" />
+            </Pressable>
+            <Text style={styles.categoryModalTitle}>Select Category</Text>
+            <View style={{ width: 40 }} />
+          </View>
+
+          <ScrollView 
+            style={styles.categoryScrollView}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.categoryScrollContent}
+          >
+            <View style={styles.categoriesGrid}>
+              {categories.map((category, index) => (
+                <Animatable.View
+                  key={category.id}
+                  animation="fadeInUp"
+                  duration={400}
+                  delay={index * 80}
+                >
+                  <Pressable
+                    style={({ pressed }) => [
+                      styles.categoryCard,
+                      pressed && styles.categoryCardPressed
+                    ]}
+                    onPress={() => handleCategorySelect(category)}
+                  >
+                    <View style={styles.categoryCardInner}>
+                      <View style={[styles.categoryIconContainer, { backgroundColor: category.bgColor }]}>
+                        <MaterialIcons name={category.icon} size={40} color={category.color} />
+                      </View>
+                      <View style={styles.categoryTextContainer}>
+                        <Text style={styles.categoryName}>{category.name}</Text>
+                        <Text style={styles.categoryDescription}>{category.description}</Text>
+                      </View>
+                      <View style={[styles.categoryArrowCircle, { backgroundColor: category.bgColor }]}>
+                        <MaterialIcons name="arrow-forward-ios" size={18} color={category.color} />
+                      </View>
+                    </View>
+                  </Pressable>
+                </Animatable.View>
+              ))}
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
+
+      {/* Create Post Modal */}
+      <Modal
+        visible={showCreatePost}
+        animationType="slide"
+        transparent={false}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Pressable onPress={() => {
+              setShowCreatePost(false);
+              setNewPostImage(null);
+              setNewPostCaption('');
+            }}>
+              <MaterialIcons name="close" size={28} color="#111827" />
+            </Pressable>
+            <Text style={styles.modalTitle}>Share Eco-Action</Text>
+            <Pressable 
+              onPress={handleCreatePost}
+              disabled={uploading || !newPostImage || !newPostCaption.trim()}
+            >
+              <Text style={[
+                styles.modalPost,
+                (!newPostImage || !newPostCaption.trim()) && styles.modalPostDisabled
+              ]}>
+                {uploading ? 'Posting...' : 'Post'}
+              </Text>
+            </Pressable>
+          </View>
+
+          <ScrollView style={styles.modalContent}>
+            {selectedCategory && (
+              <View style={[styles.selectedCategoryBanner, { backgroundColor: selectedCategory.bgColor }]}>
+                <MaterialIcons name={selectedCategory.icon} size={24} color={selectedCategory.color} />
+                <Text style={[styles.selectedCategoryText, { color: selectedCategory.color }]}>
+                  {selectedCategory.name}
+                </Text>
+              </View>
+            )}
+
+            {newPostImage ? (
+              <View style={styles.imagePreviewContainer}>
+                <Image source={{ uri: newPostImage }} style={styles.imagePreview} />
+                <Pressable 
+                  style={styles.removeImageButton}
+                  onPress={() => setNewPostImage(null)}
+                >
+                  <MaterialIcons name="close" size={24} color="#fff" />
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable style={styles.selectImageButton} onPress={pickImage}>
+                <MaterialIcons name="add-photo-alternate" size={64} color="#10B981" />
+                <Text style={styles.selectImageText}>Add Photo</Text>
+              </Pressable>
+            )}
+
+            <TextInput
+              style={styles.captionInput}
+              placeholder="Share your eco-action story... 🌱"
+              placeholderTextColor="#9CA3AF"
+              multiline
+              value={newPostCaption}
+              onChangeText={setNewPostCaption}
+              maxLength={500}
+            />
+
+            <View style={styles.captionTips}>
+              <MaterialIcons name="info-outline" size={20} color="#6B7280" />
+              <Text style={styles.captionTipsText}>
+                Share what eco-friendly action you took and inspire others!
+              </Text>
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -343,362 +592,483 @@ const Homepage = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: "#fff",
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#F9FAFB',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#fff",
   },
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#6B7280',
+    color: "#6B7280",
   },
   header: {
-    paddingTop: 60,
-    paddingBottom: 32,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingTop: 50,
+    paddingBottom: 16,
     paddingHorizontal: 20,
-    borderBottomLeftRadius: 32,
-    borderBottomRightRadius: 32,
+    backgroundColor: "#fff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
   },
-  headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 32,
-  },
-  greeting: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginBottom: 4,
-  },
-  userName: {
+  headerTitle: {
     fontSize: 24,
-    fontWeight: '700',
-    color: '#fff',
+    fontWeight: "700",
+    color: "#111827",
   },
-  logoutButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerStats: {
-    flexDirection: 'row',
+  headerIcons: {
+    flexDirection: "row",
     gap: 16,
   },
-  statCard: {
+  headerIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  feed: {
     flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 16,
-    padding: 20,
-    alignItems: 'center',
+    backgroundColor: "#F3F4F6",
   },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#fff',
-    marginTop: 8,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginTop: 4,
-  },
-  content: {
-    padding: 20,
-    paddingBottom: 100,
-  },
-  goalCard: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  goalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  goalTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  goalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
-  },
-  goalPercentage: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#10B981',
-  },
-  progressBarContainer: {
-    height: 8,
-    backgroundColor: '#E5E7EB',
-    borderRadius: 4,
-    marginBottom: 16,
-    overflow: 'hidden',
-  },
-  progressBar: {
-    height: '100%',
-    backgroundColor: '#10B981',
-    borderRadius: 4,
-  },
-  goalDetails: {
-    gap: 4,
-  },
-  goalText: {
-    fontSize: 16,
-    color: '#6B7280',
-  },
-  goalHighlight: {
-    fontWeight: '700',
-    color: '#111827',
-  },
-  goalSubtext: {
-    fontSize: 14,
-    color: '#9CA3AF',
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 16,
-  },
-  impactGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 24,
-  },
-  impactCard: {
-    width: '48%',
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  impactIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  impactNumber: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  impactLabel: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  actionGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 24,
-  },
-  actionCard: {
-    width: '48%',
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  actionIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  actionText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#111827',
-    textAlign: 'center',
-  },
-  tipCard: {
-    backgroundColor: '#FEF3C7',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 24,
-  },
-  tipHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 12,
-  },
-  tipTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#92400E',
-  },
-  tipText: {
-    fontSize: 14,
-    color: '#78350F',
-    lineHeight: 20,
-  },
-  weekCard: {
-    backgroundColor: '#fff',
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  weekDays: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  welcomeBanner: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#ECFDF5",
+    marginHorizontal: 16,
+    marginTop: 16,
     marginBottom: 20,
+    padding: 20,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: "#D1FAE5",
   },
-  dayContainer: {
-    alignItems: 'center',
-    gap: 8,
+  bannerContent: {
+    flex: 1,
   },
-  dayBarContainer: {
-    height: 100,
-    width: 32,
-    justifyContent: 'flex-end',
-  },
-  dayBar: {
-    width: '100%',
-    borderRadius: 4,
-  },
-  dayLabel: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    fontWeight: '600',
-  },
-  dayLabelActive: {
-    color: '#10B981',
-  },
-  weekStats: {
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-  },
-  weekStatItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  weekStatText: {
-    fontSize: 14,
-    color: '#6B7280',
-  },
-  weekStatNumber: {
-    fontWeight: '700',
-    color: '#10B981',
-  },
-  achievementHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  viewAllText: {
-    fontSize: 14,
-    color: '#10B981',
-    fontWeight: '600',
-  },
-  achievementScroll: {
-    marginBottom: 24,
-  },
-  achievementCard: {
-    width: 140,
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    marginRight: 12,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  achievementBadge: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: '#FEF3C7',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  achievementName: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#111827',
-    textAlign: 'center',
+  bannerTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#065F46",
     marginBottom: 4,
   },
-  achievementDesc: {
-    fontSize: 12,
-    color: '#6B7280',
-    textAlign: 'center',
+  bannerSubtitle: {
+    fontSize: 14,
+    color: "#059669",
   },
-  bottomNav: {
-    position: 'absolute',
+  bannerIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "#D1FAE5",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  postsContainer: {
+    paddingHorizontal: 16,
+    gap: 16,
+  },
+  ecoCard: {
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    marginBottom: 16,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  categoryBadge: {
+    position: "absolute",
+    top: 16,
+    left: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    zIndex: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  categoryText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#10B981",
+  },
+  imageContainer: {
+    position: "relative",
+    width: "100%",
+    height: 240,
+  },
+  cardImage: {
+    width: "100%",
+    height: "100%",
+    backgroundColor: "#E5E7EB",
+  },
+  imageOverlay: {
+    position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    flexDirection: 'row',
-    backgroundColor: '#fff',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
+    padding: 16,
+    background: "linear-gradient(transparent, rgba(0,0,0,0.6))",
+  },
+  userBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignSelf: "flex-start",
+  },
+  smallAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "#10B981",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  overlayUserName: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#fff",
+  },
+  cardContent: {
+    padding: 16,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 8,
+  },
+  cardDescription: {
+    fontSize: 14,
+    color: "#6B7280",
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  impactContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 16,
+  },
+  impactBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#ECFDF5",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#D1FAE5",
+  },
+  impactText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#059669",
+  },
+  cardActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+    paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    shadowColor: '#000',
+    borderTopColor: "#F3F4F6",
+  },
+  cardActionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  actionText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#6B7280",
+  },
+  actionTextLiked: {
+    color: "#EF4444",
+  },
+  timeContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginLeft: "auto",
+  },
+  timeText: {
+    fontSize: 12,
+    color: "#9CA3AF",
+  },
+  feedEnd: {
+    alignItems: "center",
+    paddingVertical: 48,
+    paddingHorizontal: 20,
+    marginTop: 20,
+  },
+  feedEndIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#ECFDF5",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  feedEndText: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 8,
+  },
+  feedEndSubtext: {
+    fontSize: 14,
+    color: "#9CA3AF",
+    textAlign: "center",
+  },
+  bottomNav: {
+    flexDirection: "row",
+    backgroundColor: "#fff",
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderTopWidth: 1,
+    borderTopColor: "#E5E7EB",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 8,
   },
   navItem: {
     flex: 1,
-    alignItems: 'center',
+    alignItems: "center",
+    paddingVertical: 8,
     gap: 4,
   },
   navText: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    fontWeight: '600',
+    fontSize: 11,
+    color: "#9CA3AF",
+    fontWeight: "600",
   },
   navTextActive: {
-    color: '#10B981',
+    color: "#10B981",
+  },
+  addButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: "#10B981",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: "#fff",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingTop: 50,
+    paddingBottom: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  modalPost: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#10B981",
+  },
+  modalPostDisabled: {
+    color: "#9CA3AF",
+  },
+  modalContent: {
+    flex: 1,
+    padding: 20,
+  },
+  selectImageButton: {
+    height: 300,
+    backgroundColor: "#F9FAFB",
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: "#E5E7EB",
+    borderStyle: "dashed",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  selectImageText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#10B981",
+    marginTop: 12,
+  },
+  imagePreviewContainer: {
+    position: "relative",
+    marginBottom: 20,
+  },
+  imagePreview: {
+    width: "100%",
+    height: 300,
+    borderRadius: 16,
+    backgroundColor: "#E5E7EB",
+  },
+  removeImageButton: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(0, 0, 0, 0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  captionInput: {
+    minHeight: 120,
+    backgroundColor: "#F9FAFB",
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 15,
+    color: "#111827",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    textAlignVertical: "top",
+    marginBottom: 16,
+  },
+  captionTips: {
+    flexDirection: "row",
+    gap: 12,
+    padding: 16,
+    backgroundColor: "#ECFDF5",
+    borderRadius: 12,
+  },
+  captionTipsText: {
+    flex: 1,
+    fontSize: 14,
+    color: "#065F46",
+    lineHeight: 20,
+  },
+  categoryModalContainer: {
+    flex: 1,
+    backgroundColor: "#fff",
+  },
+  categoryModalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingTop: 50,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+    backgroundColor: "#fff",
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
+  },
+  closeButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#F3F4F6",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  categoryModalTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#111827",
+  },
+  categoryScrollView: {
+    flex: 1,
+    backgroundColor: "#F9FAFB",
+  },
+  categoryScrollContent: {
+    padding: 16,
+    paddingBottom: 32,
+  },
+  categoriesGrid: {
+    gap: 12,
+  },
+  categoryCard: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  categoryCardPressed: {
+    transform: [{ scale: 0.97 }],
+  },
+  categoryCardInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 20,
+    gap: 16,
+  },
+  categoryIconContainer: {
+    width: 72,
+    height: 72,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  categoryTextContainer: {
+    flex: 1,
+  },
+  categoryName: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 5,
+  },
+  categoryDescription: {
+    fontSize: 14,
+    color: "#6B7280",
+    lineHeight: 19,
+  },
+  categoryArrowCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  selectedCategoryBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 20,
+  },
+  selectedCategoryText: {
+    fontSize: 16,
+    fontWeight: "700",
   },
 });
 
