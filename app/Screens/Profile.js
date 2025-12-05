@@ -17,32 +17,58 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { BASE_URL } from "../config";
 
-const Profile = ({ userData, onRefresh }) => {
+const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
   const [userPosts, setUserPosts] = useState([]);
+  const [viewingUserData, setViewingUserData] = useState(null);
   const [stats, setStats] = useState({
     posts: 0,
     ecoPoints: 0,
   });
 
+  // Check if viewing own profile or another user's profile
+  const isOwnProfile = !viewingUserId || userData?.mobile === viewingUserId;
+
   useEffect(() => {
-    if (userData) {
+    if (viewingUserId && !isOwnProfile) {
+      // Load other user's data
+      loadViewingUserData();
+    } else if (userData) {
       loadUserPosts();
     }
-  }, [userData]);
+  }, [userData, viewingUserId]);
+
+  const loadViewingUserData = async () => {
+    try {
+      const response = await fetch(`${BASE_URL}/user/${viewingUserId}`);
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        setViewingUserData(result.user);
+        loadUserPosts(viewingUserId);
+      }
+    } catch (error) {
+      console.error("Error loading viewing user data:", error);
+    }
+  };
 
   useEffect(() => {
     calculateStats();
   }, [userPosts]);
 
-  const loadUserPosts = async () => {
+  const loadUserPosts = async (targetMobile = null) => {
     try {
-      const mobile = await AsyncStorage.getItem("mobile");
+      // Use targetMobile if provided (viewing other user), otherwise use own mobile
+      const mobile = targetMobile || userData?.mobile || await AsyncStorage.getItem("mobile");
+      
+      console.log("Loading posts for mobile:", mobile); // Debug log
+      
       const response = await fetch(`${BASE_URL}/posts/user/${mobile}`);
       const result = await response.json();
 
       if (response.ok && result.success) {
+        console.log(`Loaded ${result.posts.length} posts for user ${mobile}`); // Debug log
         setUserPosts(result.posts);
       }
     } catch (error) {
@@ -60,9 +86,48 @@ const Profile = ({ userData, onRefresh }) => {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadUserPosts();
-    if (onRefresh) await onRefresh();
+    if (viewingUserId && !isOwnProfile) {
+      await loadViewingUserData();
+    } else {
+      await loadUserPosts();
+      if (onRefresh) await onRefresh();
+    }
     setRefreshing(false);
+  };
+
+  const handleDeletePost = (postId) => {
+    Alert.alert(
+      "Delete Post",
+      "Are you sure you want to delete this post?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const mobile = userData?.mobile || await AsyncStorage.getItem("mobile");
+              const response = await fetch(`${BASE_URL}/posts/${postId}?mobile=${mobile}`, {
+                method: "DELETE",
+              });
+
+              const result = await response.json();
+
+              if (response.ok && result.success) {
+                Alert.alert("Success", "Post deleted successfully!");
+                // Remove post from local state
+                setUserPosts(userPosts.filter(post => post._id !== postId));
+              } else {
+                Alert.alert("Error", result.detail || "Failed to delete post");
+              }
+            } catch (error) {
+              console.error("Error deleting post:", error);
+              Alert.alert("Error", "Failed to delete post");
+            }
+          },
+        },
+      ]
+    );
   };
 
   const handleSettingsMenu = () => {
@@ -225,34 +290,51 @@ const Profile = ({ userData, onRefresh }) => {
       {/* Header with Cover */}
       <View style={styles.coverContainer}>
         <View style={styles.coverGradient} />
-        <Pressable style={styles.settingsButton} onPress={handleSettingsMenu}>
-          <MaterialIcons name="settings" size={22} color="#fff" />
-        </Pressable>
+        {isOwnProfile && (
+          <Pressable style={styles.settingsButton} onPress={handleSettingsMenu}>
+            <MaterialIcons name="settings" size={22} color="#fff" />
+          </Pressable>
+        )}
+        {!isOwnProfile && (
+          <Pressable style={styles.settingsButton} onPress={() => router.back()}>
+            <MaterialIcons name="arrow-back" size={22} color="#fff" />
+          </Pressable>
+        )}
       </View>
 
       {/* Profile Info */}
       <View style={styles.profileSection}>
         <View style={styles.avatarContainer}>
-          {userData?.profilePicture ? (
-            <Image
-              source={{ uri: userData.profilePicture }}
-              style={styles.avatar}
-            />
+          {isOwnProfile ? (
+            <>
+              {userData?.profilePicture ? (
+                <Image
+                  source={{ uri: userData.profilePicture }}
+                  style={styles.avatar}
+                />
+              ) : (
+                <View style={styles.avatar}>
+                  <MaterialIcons name="person" size={60} color="#fff" />
+                </View>
+              )}
+              <Pressable
+                style={styles.editAvatarButton}
+                onPress={handleProfilePhotoOptions}
+              >
+                <MaterialIcons name="camera-alt" size={18} color="#6366F1" />
+              </Pressable>
+            </>
           ) : (
             <View style={styles.avatar}>
               <MaterialIcons name="person" size={60} color="#fff" />
             </View>
           )}
-          <Pressable
-            style={styles.editAvatarButton}
-            onPress={handleProfilePhotoOptions}
-          >
-            <MaterialIcons name="camera-alt" size={18} color="#6366F1" />
-          </Pressable>
         </View>
 
         <Text style={styles.userName}>
-          {userData?.firstName} {userData?.lastName}
+          {isOwnProfile 
+            ? `${userData?.firstName} ${userData?.lastName}`
+            : "Anonymous User"}
         </Text>
         <Text style={styles.userBio}>
           🌱 Making the world greener, one step at a time
@@ -271,16 +353,18 @@ const Profile = ({ userData, onRefresh }) => {
           </View>
         </View>
 
-        {/* Action Buttons */}
-        <View style={styles.actionButtons}>
-          <Pressable style={styles.primaryButton}>
-            <MaterialIcons name="edit" size={20} color="#fff" />
-            <Text style={styles.primaryButtonText}>Edit Profile</Text>
-          </Pressable>
-          <Pressable style={styles.secondaryButton}>
-            <MaterialIcons name="share" size={20} color="#6366F1" />
-          </Pressable>
-        </View>
+        {/* Action Buttons - only show for own profile */}
+        {isOwnProfile && (
+          <View style={styles.actionButtons}>
+            <Pressable style={styles.primaryButton}>
+              <MaterialIcons name="edit" size={20} color="#fff" />
+              <Text style={styles.primaryButtonText}>Edit Profile</Text>
+            </Pressable>
+            <Pressable style={styles.secondaryButton}>
+              <MaterialIcons name="share" size={20} color="#6366F1" />
+            </Pressable>
+          </View>
+        )}
       </View>
 
       {/* Eco Points Card */}
@@ -363,6 +447,15 @@ const Profile = ({ userData, onRefresh }) => {
                     <Text style={styles.postStatText}>{post.likesCount}</Text>
                   </View>
                 </View>
+                {/* Delete button - only show on own profile */}
+                {isOwnProfile && (
+                  <Pressable
+                    style={styles.deleteButton}
+                    onPress={() => handleDeletePost(post._id)}
+                  >
+                    <MaterialIcons name="delete" size={18} color="#fff" />
+                  </Pressable>
+                )}
               </Pressable>
             ))}
           </View>
@@ -676,6 +769,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "700",
     color: "#fff",
+  },
+  deleteButton: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(239, 68, 68, 0.9)",
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
   },
   emptyState: {
     alignItems: "center",
