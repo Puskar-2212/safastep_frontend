@@ -152,6 +152,48 @@ const Homepage = () => {
     }
   };
 
+  const handleDeletePost = (postId, postMobile) => {
+    Alert.alert(
+      "Delete Post",
+      "Are you sure you want to delete this post?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const mobile = await AsyncStorage.getItem("mobile");
+              
+              // Check if user owns this post
+              if (mobile !== postMobile) {
+                Alert.alert("Error", "You can only delete your own posts");
+                return;
+              }
+
+              const response = await fetch(`${BASE_URL}/posts/${postId}?mobile=${mobile}`, {
+                method: "DELETE",
+              });
+
+              const result = await response.json();
+
+              if (response.ok && result.success) {
+                Alert.alert("Success", "Post deleted successfully!");
+                // Remove post from local state
+                setPosts(posts.filter(post => post.id !== postId));
+              } else {
+                Alert.alert("Error", result.detail || "Failed to delete post");
+              }
+            } catch (error) {
+              console.error("Error deleting post:", error);
+              Alert.alert("Error", "Failed to delete post");
+            }
+          },
+        },
+      ]
+    );
+  };
+
 
 
   if (loading) {
@@ -213,14 +255,38 @@ const Homepage = () => {
               <View style={styles.imageContainer}>
                 <Image source={post.image} style={styles.cardImage} resizeMode="cover" />
                 <View style={styles.imageOverlay}>
-                  <View style={styles.userBadge}>
+                  <Pressable
+                    style={styles.userBadge}
+                    onPress={() => {
+                      if (userData?.mobile !== post.mobile) {
+                        // Navigate to other user's profile
+                        // URL encode the mobile number to preserve the + sign
+                        router.push(`/Screens/UserProfile?mobile=${encodeURIComponent(post.mobile)}`);
+                      }
+                    }}
+                  >
                     <View style={styles.smallAvatar}>
                       <MaterialIcons name="person" size={16} color="#fff" />
                     </View>
-                    <Text style={styles.overlayUserName}>{post.user.name}</Text>
-                  </View>
+                    <Text style={styles.overlayUserName}>
+                      {userData?.mobile === post.mobile ? post.user.name : "Anonymous User"}
+                    </Text>
+                    {userData?.mobile !== post.mobile && (
+                      <MaterialIcons name="chevron-right" size={16} color="#fff" />
+                    )}
+                  </Pressable>
                 </View>
               </View>
+
+              {/* Delete button - only show for user's own posts */}
+              {userData?.mobile === post.mobile && (
+                <Pressable
+                  style={styles.deletePostButton}
+                  onPress={() => handleDeletePost(post.id, post.mobile)}
+                >
+                  <MaterialIcons name="delete" size={20} color="#fff" />
+                </Pressable>
+              )}
 
               {/* Card Content */}
               <View style={styles.cardContent}>
@@ -532,6 +598,23 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#fff",
     letterSpacing: 0.3,
+  },
+  deletePostButton: {
+    position: "absolute",
+    top: 16,
+    right: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(239, 68, 68, 0.95)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 10,
+    shadowColor: "#EF4444",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 5,
   },
   imageContainer: {
     position: "relative",
