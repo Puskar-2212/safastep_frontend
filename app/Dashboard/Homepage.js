@@ -9,15 +9,14 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
-  TextInput,
-  Modal,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Animatable from "react-native-animatable";
-import * as ImagePicker from "expo-image-picker";
 import { BASE_URL } from "../config";
+import CreatePost from "../Screens/CreatePost";
+import Profile from "../Screens/Profile";
 
 const Homepage = () => {
   const params = useLocalSearchParams();
@@ -28,55 +27,7 @@ const Homepage = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [posts, setPosts] = useState([]);
   const [activeTab, setActiveTab] = useState('home');
-  const [showCategorySelection, setShowCategorySelection] = useState(false);
   const [showCreatePost, setShowCreatePost] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState(null);
-  const [newPostImage, setNewPostImage] = useState(null);
-  const [newPostCaption, setNewPostCaption] = useState('');
-  const [uploading, setUploading] = useState(false);
-
-  const categories = [
-    {
-      id: 'transportation',
-      name: 'Transportation',
-      icon: 'directions-bus',
-      color: '#3B82F6',
-      bgColor: '#DBEAFE',
-      description: 'Eco-friendly commute & travel'
-    },
-    {
-      id: 'plantation',
-      name: 'Plantation',
-      icon: 'park',
-      color: '#10B981',
-      bgColor: '#D1FAE5',
-      description: 'Tree planting & gardening'
-    },
-    {
-      id: 'recycling',
-      name: 'Recycling',
-      icon: 'recycling',
-      color: '#8B5CF6',
-      bgColor: '#EDE9FE',
-      description: 'Reuse & recycle materials'
-    },
-    {
-      id: 'waste-management',
-      name: 'Waste Management',
-      icon: 'delete-outline',
-      color: '#F59E0B',
-      bgColor: '#FEF3C7',
-      description: 'Proper waste disposal'
-    },
-    {
-      id: 'energy',
-      name: 'Energy Conservation',
-      icon: 'bolt',
-      color: '#EF4444',
-      bgColor: '#FEE2E2',
-      description: 'Save energy & resources'
-    },
-  ];
 
   useEffect(() => {
     loadUserData();
@@ -201,91 +152,7 @@ const Homepage = () => {
     }
   };
 
-  const pickImage = async () => {
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.8,
-      });
 
-      if (!result.canceled) {
-        setNewPostImage(result.assets[0].uri);
-      }
-    } catch (error) {
-      console.error('Error picking image:', error);
-      Alert.alert('Error', 'Failed to pick image');
-    }
-  };
-
-  const handleCategorySelect = (category) => {
-    setSelectedCategory(category);
-    setShowCategorySelection(false);
-    setShowCreatePost(true);
-  };
-
-  const handleCreatePost = async () => {
-    if (!newPostImage || !newPostCaption.trim()) {
-      Alert.alert('Missing Information', 'Please add both an image and caption');
-      return;
-    }
-
-    if (!selectedCategory) {
-      Alert.alert('Missing Category', 'Please select a category');
-      return;
-    }
-
-    setUploading(true);
-
-    try {
-      const mobile = await AsyncStorage.getItem("mobile");
-      
-      // Create FormData for multipart/form-data request
-      const formData = new FormData();
-      formData.append('mobile', mobile);
-      formData.append('caption', newPostCaption);
-      formData.append('category', selectedCategory.name);
-      formData.append('categoryId', selectedCategory.id);
-      
-      // Add image file
-      const imageFile = {
-        uri: newPostImage,
-        type: 'image/jpeg',
-        name: `post_${Date.now()}.jpg`,
-      };
-      formData.append('image', imageFile);
-
-      // Call backend API
-      const response = await fetch(`${BASE_URL}/posts`, {
-        method: 'POST',
-        body: formData,
-        headers: {
-          'Accept': 'application/json',
-        },
-      });
-
-      const result = await response.json();
-
-      if (response.ok && result.success) {
-        // Reload posts to show the new one
-        await loadPosts();
-        
-        setShowCreatePost(false);
-        setNewPostImage(null);
-        setNewPostCaption('');
-        setSelectedCategory(null);
-        Alert.alert('Success', 'Your eco-action has been shared!');
-      } else {
-        Alert.alert('Error', result.detail || 'Failed to create post');
-      }
-    } catch (error) {
-      console.error('Error creating post:', error);
-      Alert.alert('Error', 'Failed to create post');
-    } finally {
-      setUploading(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -296,19 +163,14 @@ const Homepage = () => {
     );
   }
 
-  return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>SafaStep</Text>
-        <View style={styles.headerIcons}>
-          <Pressable style={styles.headerIcon}>
-            <MaterialIcons name="notifications-none" size={26} color="#111827" />
-          </Pressable>
-        </View>
-      </View>
+  // Render content based on active tab
+  const renderContent = () => {
+    if (activeTab === 'profile') {
+      return <Profile userData={userData} onRefresh={loadUserData} />;
+    }
 
-      {/* Feed */}
+    // Default Home Feed
+    return (
       <ScrollView
         style={styles.feed}
         showsVerticalScrollIndicator={false}
@@ -327,7 +189,7 @@ const Homepage = () => {
             </Text>
           </View>
           <View style={styles.bannerIcon}>
-            <MaterialIcons name="eco" size={40} color="#10B981" />
+            <MaterialIcons name="eco" size={40} color="#fff" />
           </View>
         </View>
 
@@ -343,7 +205,7 @@ const Homepage = () => {
             >
               {/* Category Badge */}
               <View style={styles.categoryBadge}>
-                <MaterialIcons name="eco" size={16} color="#10B981" />
+                <MaterialIcons name="eco" size={16} color="#fff" />
                 <Text style={styles.categoryText}>{post.impact.category}</Text>
               </View>
 
@@ -370,7 +232,7 @@ const Homepage = () => {
                 {/* Impact Stats */}
                 <View style={styles.impactContainer}>
                   <View style={styles.impactBadge}>
-                    <MaterialIcons name="cloud" size={18} color="#10B981" />
+                    <MaterialIcons name="cloud" size={18} color="#6366F1" />
                     <Text style={styles.impactText}>{post.impact.co2} CO₂</Text>
                   </View>
                   {post.impact.trees && (
@@ -381,7 +243,7 @@ const Homepage = () => {
                   )}
                   {post.impact.waste && (
                     <View style={styles.impactBadge}>
-                      <MaterialIcons name="delete-outline" size={18} color="#10B981" />
+                      <MaterialIcons name="delete-outline" size={18} color="#F59E0B" />
                       <Text style={styles.impactText}>{post.impact.waste}</Text>
                     </View>
                   )}
@@ -396,7 +258,7 @@ const Homepage = () => {
                     <MaterialIcons 
                       name={post.liked ? "favorite" : "favorite-border"} 
                       size={22} 
-                      color={post.liked ? "#EF4444" : "#6B7280"} 
+                      color={post.liked ? "#F43F5E" : "#64748B"} 
                     />
                     <Text style={[styles.actionText, post.liked && styles.actionTextLiked]}>
                       {post.likes}
@@ -404,16 +266,16 @@ const Homepage = () => {
                   </Pressable>
 
                   <Pressable style={styles.cardActionButton}>
-                    <MaterialIcons name="chat-bubble-outline" size={20} color="#6B7280" />
+                    <MaterialIcons name="chat-bubble-outline" size={20} color="#64748B" />
                     <Text style={styles.actionText}>{post.comments}</Text>
                   </Pressable>
 
                   <Pressable style={styles.cardActionButton}>
-                    <MaterialIcons name="share" size={20} color="#6B7280" />
+                    <MaterialIcons name="share" size={20} color="#64748B" />
                   </Pressable>
 
                   <View style={styles.timeContainer}>
-                    <MaterialIcons name="access-time" size={14} color="#9CA3AF" />
+                    <MaterialIcons name="access-time" size={14} color="#94A3B8" />
                     <Text style={styles.timeText}>{post.timeAgo}</Text>
                   </View>
                 </View>
@@ -424,7 +286,7 @@ const Homepage = () => {
 
         <View style={styles.feedEnd}>
           <View style={styles.feedEndIcon}>
-            <MaterialIcons name="eco" size={48} color="#10B981" />
+            <MaterialIcons name="eco" size={48} color="#6366F1" />
           </View>
           <Text style={styles.feedEndText}>You're all caught up!</Text>
           <Text style={styles.feedEndSubtext}>
@@ -432,32 +294,55 @@ const Homepage = () => {
           </Text>
         </View>
       </ScrollView>
+    );
+  };
+
+  return (
+    <View style={styles.container}>
+      {/* Header - Only show on home tab */}
+      {activeTab === 'home' && (
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>SafaStep</Text>
+          <View style={styles.headerIcons}>
+            <Pressable style={styles.headerIcon}>
+              <MaterialIcons name="notifications-none" size={26} color="#111827" />
+            </Pressable>
+          </View>
+        </View>
+      )}
+
+      {/* Content */}
+      {renderContent()}
 
       {/* Bottom Navigation */}
       <View style={styles.bottomNav}>
         <Pressable 
-          style={styles.navItem}
+          style={[styles.navItem, activeTab === 'home' && styles.navItemActive]}
           onPress={() => setActiveTab('home')}
         >
-          <MaterialIcons 
-            name="home" 
-            size={28} 
-            color={activeTab === 'home' ? "#10B981" : "#9CA3AF"} 
-          />
+          <View style={[styles.navIconContainer, activeTab === 'home' && styles.navIconContainerActive]}>
+            <MaterialIcons 
+              name="home" 
+              size={26} 
+              color={activeTab === 'home' ? "#6366F1" : "#94A3B8"} 
+            />
+          </View>
           <Text style={[styles.navText, activeTab === 'home' && styles.navTextActive]}>
             Home
           </Text>
         </Pressable>
 
         <Pressable 
-          style={styles.navItem}
+          style={[styles.navItem, activeTab === 'explore' && styles.navItemActive]}
           onPress={() => setActiveTab('explore')}
         >
-          <MaterialIcons 
-            name="campaign" 
-            size={28} 
-            color={activeTab === 'explore' ? "#10B981" : "#9CA3AF"} 
-          />
+          <View style={[styles.navIconContainer, activeTab === 'explore' && styles.navIconContainerActive]}>
+            <MaterialIcons 
+              name="campaign" 
+              size={26} 
+              color={activeTab === 'explore' ? "#6366F1" : "#94A3B8"} 
+            />
+          </View>
           <Text style={[styles.navText, activeTab === 'explore' && styles.navTextActive]}>
             Explore
           </Text>
@@ -465,177 +350,53 @@ const Homepage = () => {
 
         <Pressable 
           style={styles.navItem}
-          onPress={() => setShowCategorySelection(true)}
+          onPress={() => setShowCreatePost(true)}
         >
           <View style={styles.addButton}>
-            <MaterialIcons name="add" size={28} color="#fff" />
+            <MaterialIcons name="add" size={30} color="#fff" />
           </View>
-          <Text style={styles.navText}>Post</Text>
+          <Text style={[styles.navText, { marginTop: 2 }]}>Post</Text>
         </Pressable>
 
         <Pressable 
-          style={styles.navItem}
+          style={[styles.navItem, activeTab === 'calculator' && styles.navItemActive]}
           onPress={() => setActiveTab('calculator')}
         >
-          <MaterialIcons 
-            name="eco" 
-            size={28} 
-            color={activeTab === 'calculator' ? "#10B981" : "#9CA3AF"} 
-          />
+          <View style={[styles.navIconContainer, activeTab === 'calculator' && styles.navIconContainerActive]}>
+            <MaterialIcons 
+              name="eco" 
+              size={26} 
+              color={activeTab === 'calculator' ? "#6366F1" : "#94A3B8"} 
+            />
+          </View>
           <Text style={[styles.navText, activeTab === 'calculator' && styles.navTextActive]}>
             CO₂ Calc
           </Text>
         </Pressable>
 
         <Pressable 
-          style={styles.navItem}
+          style={[styles.navItem, activeTab === 'profile' && styles.navItemActive]}
           onPress={() => setActiveTab('profile')}
         >
-          <MaterialIcons 
-            name="person-outline" 
-            size={28} 
-            color={activeTab === 'profile' ? "#10B981" : "#9CA3AF"} 
-          />
+          <View style={[styles.navIconContainer, activeTab === 'profile' && styles.navIconContainerActive]}>
+            <MaterialIcons 
+              name={activeTab === 'profile' ? "person" : "person-outline"} 
+              size={26} 
+              color={activeTab === 'profile' ? "#6366F1" : "#94A3B8"} 
+            />
+          </View>
           <Text style={[styles.navText, activeTab === 'profile' && styles.navTextActive]}>
             Profile
           </Text>
         </Pressable>
       </View>
 
-      {/* Category Selection Modal */}
-      <Modal
-        visible={showCategorySelection}
-        animationType="slide"
-        transparent={false}
-      >
-        <View style={styles.categoryModalContainer}>
-          {/* Simple Header */}
-          <View style={styles.categoryModalHeader}>
-            <Pressable 
-              style={styles.closeButton}
-              onPress={() => setShowCategorySelection(false)}
-            >
-              <MaterialIcons name="close" size={24} color="#111827" />
-            </Pressable>
-            <Text style={styles.categoryModalTitle}>Select Category</Text>
-            <View style={{ width: 40 }} />
-          </View>
-
-          <ScrollView 
-            style={styles.categoryScrollView}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.categoryScrollContent}
-          >
-            <View style={styles.categoriesGrid}>
-              {categories.map((category, index) => (
-                <Animatable.View
-                  key={category.id}
-                  animation="fadeInUp"
-                  duration={400}
-                  delay={index * 80}
-                >
-                  <Pressable
-                    style={({ pressed }) => [
-                      styles.categoryCard,
-                      pressed && styles.categoryCardPressed
-                    ]}
-                    onPress={() => handleCategorySelect(category)}
-                  >
-                    <View style={styles.categoryCardInner}>
-                      <View style={[styles.categoryIconContainer, { backgroundColor: category.bgColor }]}>
-                        <MaterialIcons name={category.icon} size={40} color={category.color} />
-                      </View>
-                      <View style={styles.categoryTextContainer}>
-                        <Text style={styles.categoryName}>{category.name}</Text>
-                        <Text style={styles.categoryDescription}>{category.description}</Text>
-                      </View>
-                      <View style={[styles.categoryArrowCircle, { backgroundColor: category.bgColor }]}>
-                        <MaterialIcons name="arrow-forward-ios" size={18} color={category.color} />
-                      </View>
-                    </View>
-                  </Pressable>
-                </Animatable.View>
-              ))}
-            </View>
-          </ScrollView>
-        </View>
-      </Modal>
-
-      {/* Create Post Modal */}
-      <Modal
+      {/* Create Post Component */}
+      <CreatePost
         visible={showCreatePost}
-        animationType="slide"
-        transparent={false}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Pressable onPress={() => {
-              setShowCreatePost(false);
-              setNewPostImage(null);
-              setNewPostCaption('');
-            }}>
-              <MaterialIcons name="close" size={28} color="#111827" />
-            </Pressable>
-            <Text style={styles.modalTitle}>Share Eco-Action</Text>
-            <Pressable 
-              onPress={handleCreatePost}
-              disabled={uploading || !newPostImage || !newPostCaption.trim()}
-            >
-              <Text style={[
-                styles.modalPost,
-                (!newPostImage || !newPostCaption.trim()) && styles.modalPostDisabled
-              ]}>
-                {uploading ? 'Posting...' : 'Post'}
-              </Text>
-            </Pressable>
-          </View>
-
-          <ScrollView style={styles.modalContent}>
-            {selectedCategory && (
-              <View style={[styles.selectedCategoryBanner, { backgroundColor: selectedCategory.bgColor }]}>
-                <MaterialIcons name={selectedCategory.icon} size={24} color={selectedCategory.color} />
-                <Text style={[styles.selectedCategoryText, { color: selectedCategory.color }]}>
-                  {selectedCategory.name}
-                </Text>
-              </View>
-            )}
-
-            {newPostImage ? (
-              <View style={styles.imagePreviewContainer}>
-                <Image source={{ uri: newPostImage }} style={styles.imagePreview} />
-                <Pressable 
-                  style={styles.removeImageButton}
-                  onPress={() => setNewPostImage(null)}
-                >
-                  <MaterialIcons name="close" size={24} color="#fff" />
-                </Pressable>
-              </View>
-            ) : (
-              <Pressable style={styles.selectImageButton} onPress={pickImage}>
-                <MaterialIcons name="add-photo-alternate" size={64} color="#10B981" />
-                <Text style={styles.selectImageText}>Add Photo</Text>
-              </Pressable>
-            )}
-
-            <TextInput
-              style={styles.captionInput}
-              placeholder="Share your eco-action story... 🌱"
-              placeholderTextColor="#9CA3AF"
-              multiline
-              value={newPostCaption}
-              onChangeText={setNewPostCaption}
-              maxLength={500}
-            />
-
-            <View style={styles.captionTips}>
-              <MaterialIcons name="info-outline" size={20} color="#6B7280" />
-              <Text style={styles.captionTipsText}>
-                Share what eco-friendly action you took and inspire others!
-              </Text>
-            </View>
-          </ScrollView>
-        </View>
-      </Modal>
+        onClose={() => setShowCreatePost(false)}
+        onPostCreated={loadPosts}
+      />
     </View>
   );
 };
@@ -649,75 +410,85 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#fff",
+    backgroundColor: "#FAFBFC",
   },
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: "#6B7280",
+    color: "#64748B",
   },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingTop: 50,
-    paddingBottom: 16,
+    paddingBottom: 18,
     paddingHorizontal: 20,
     backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
+    shadowColor: "#6366F1",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 5,
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: "#111827",
+    fontSize: 28,
+    fontWeight: "800",
+    color: "#6366F1",
+    letterSpacing: -0.5,
   },
   headerIcons: {
     flexDirection: "row",
-    gap: 16,
+    gap: 12,
   },
   headerIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#F0F4FF",
     justifyContent: "center",
     alignItems: "center",
   },
   feed: {
     flex: 1,
-    backgroundColor: "#F3F4F6",
+    backgroundColor: "#FAFBFC",
   },
   welcomeBanner: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#ECFDF5",
+    backgroundColor: "#6366F1",
     marginHorizontal: 16,
     marginTop: 16,
     marginBottom: 20,
-    padding: 20,
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: "#D1FAE5",
+    padding: 24,
+    borderRadius: 24,
+    shadowColor: "#6366F1",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 8,
   },
   bannerContent: {
     flex: 1,
   },
   bannerTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#065F46",
-    marginBottom: 4,
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#fff",
+    marginBottom: 6,
+    letterSpacing: -0.3,
   },
   bannerSubtitle: {
-    fontSize: 14,
-    color: "#059669",
+    fontSize: 15,
+    color: "#E0E7FF",
+    fontWeight: "500",
   },
   bannerIcon: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "#D1FAE5",
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -727,14 +498,16 @@ const styles = StyleSheet.create({
   },
   ecoCard: {
     backgroundColor: "#fff",
-    borderRadius: 20,
-    marginBottom: 16,
+    borderRadius: 24,
+    marginBottom: 20,
     overflow: "hidden",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: "#F3F4F6",
   },
   categoryBadge: {
     position: "absolute",
@@ -743,31 +516,32 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "rgba(255, 255, 255, 0.95)",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
+    backgroundColor: "#6366F1",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 24,
     zIndex: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowColor: "#6366F1",
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
   },
   categoryText: {
-    fontSize: 12,
-    fontWeight: "700",
-    color: "#10B981",
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#fff",
+    letterSpacing: 0.3,
   },
   imageContainer: {
     position: "relative",
     width: "100%",
-    height: 240,
+    height: 280,
   },
   cardImage: {
     width: "100%",
     height: "100%",
-    backgroundColor: "#E5E7EB",
+    backgroundColor: "#F3F4F6",
   },
   imageOverlay: {
     position: "absolute",
@@ -791,7 +565,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: "#10B981",
+    backgroundColor: "#6366F1",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -801,19 +575,20 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
   cardContent: {
-    padding: 16,
+    padding: 20,
   },
   cardTitle: {
-    fontSize: 18,
-    fontWeight: "700",
+    fontSize: 19,
+    fontWeight: "800",
     color: "#111827",
-    marginBottom: 8,
+    marginBottom: 10,
+    letterSpacing: -0.3,
   },
   cardDescription: {
-    fontSize: 14,
+    fontSize: 15,
     color: "#6B7280",
-    lineHeight: 20,
-    marginBottom: 16,
+    lineHeight: 22,
+    marginBottom: 18,
   },
   impactContainer: {
     flexDirection: "row",
@@ -825,17 +600,17 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#ECFDF5",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#D1FAE5",
+    backgroundColor: "#F0F4FF",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: "#E0E7FF",
   },
   impactText: {
     fontSize: 13,
-    fontWeight: "600",
-    color: "#059669",
+    fontWeight: "700",
+    color: "#4F46E5",
   },
   cardActions: {
     flexDirection: "row",
@@ -853,10 +628,10 @@ const styles = StyleSheet.create({
   actionText: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#6B7280",
+    color: "#64748B",
   },
   actionTextLiked: {
-    color: "#EF4444",
+    color: "#F43F5E",
   },
   timeContainer: {
     flexDirection: "row",
@@ -866,7 +641,7 @@ const styles = StyleSheet.create({
   },
   timeText: {
     fontSize: 12,
-    color: "#9CA3AF",
+    color: "#94A3B8",
   },
   feedEnd: {
     alignItems: "center",
@@ -878,7 +653,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: "#ECFDF5",
+    backgroundColor: "#F0F4FF",
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 16,
@@ -886,240 +661,71 @@ const styles = StyleSheet.create({
   feedEndText: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#111827",
+    color: "#1E293B",
     marginBottom: 8,
   },
   feedEndSubtext: {
     fontSize: 14,
-    color: "#9CA3AF",
+    color: "#64748B",
     textAlign: "center",
   },
   bottomNav: {
     flexDirection: "row",
     backgroundColor: "#fff",
-    paddingVertical: 8,
+    paddingVertical: 10,
     paddingHorizontal: 8,
-    borderTopWidth: 1,
-    borderTopColor: "#E5E7EB",
+    paddingBottom: 12,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 12,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
   },
   navItem: {
     flex: 1,
     alignItems: "center",
-    paddingVertical: 8,
-    gap: 4,
+    paddingVertical: 6,
+    gap: 6,
+  },
+  navItemActive: {
+    transform: [{ scale: 1.05 }],
+  },
+  navIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "transparent",
+  },
+  navIconContainerActive: {
+    backgroundColor: "#EEF2FF",
   },
   navText: {
     fontSize: 11,
-    color: "#9CA3AF",
+    color: "#94A3B8",
     fontWeight: "600",
+    marginTop: -2,
   },
   navTextActive: {
-    color: "#10B981",
+    color: "#6366F1",
+    fontWeight: "700",
   },
   addButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    backgroundColor: "#10B981",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingTop: 50,
-    paddingBottom: 16,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#E5E7EB",
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#111827",
-  },
-  modalPost: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#10B981",
-  },
-  modalPostDisabled: {
-    color: "#9CA3AF",
-  },
-  modalContent: {
-    flex: 1,
-    padding: 20,
-  },
-  selectImageButton: {
-    height: 300,
-    backgroundColor: "#F9FAFB",
+    width: 56,
+    height: 56,
     borderRadius: 16,
-    borderWidth: 2,
-    borderColor: "#E5E7EB",
-    borderStyle: "dashed",
+    backgroundColor: "#6366F1",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 20,
-  },
-  selectImageText: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#10B981",
-    marginTop: 12,
-  },
-  imagePreviewContainer: {
-    position: "relative",
-    marginBottom: 20,
-  },
-  imagePreview: {
-    width: "100%",
-    height: 300,
-    borderRadius: 16,
-    backgroundColor: "#E5E7EB",
-  },
-  removeImageButton: {
-    position: "absolute",
-    top: 12,
-    right: 12,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  captionInput: {
-    minHeight: 120,
-    backgroundColor: "#F9FAFB",
-    borderRadius: 12,
-    padding: 16,
-    fontSize: 15,
-    color: "#111827",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-    textAlignVertical: "top",
-    marginBottom: 16,
-  },
-  captionTips: {
-    flexDirection: "row",
-    gap: 12,
-    padding: 16,
-    backgroundColor: "#ECFDF5",
-    borderRadius: 12,
-  },
-  captionTipsText: {
-    flex: 1,
-    fontSize: 14,
-    color: "#065F46",
-    lineHeight: 20,
-  },
-  categoryModalContainer: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
-  categoryModalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingTop: 50,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
-  },
-  closeButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#F3F4F6",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  categoryModalTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#111827",
-  },
-  categoryScrollView: {
-    flex: 1,
-    backgroundColor: "#F9FAFB",
-  },
-  categoryScrollContent: {
-    padding: 16,
-    paddingBottom: 32,
-  },
-  categoriesGrid: {
-    gap: 12,
-  },
-  categoryCard: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  categoryCardPressed: {
-    transform: [{ scale: 0.97 }],
-  },
-  categoryCardInner: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 20,
-    gap: 16,
-  },
-  categoryIconContainer: {
-    width: 72,
-    height: 72,
-    borderRadius: 16,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  categoryTextContainer: {
-    flex: 1,
-  },
-  categoryName: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#111827",
-    marginBottom: 5,
-  },
-  categoryDescription: {
-    fontSize: 14,
-    color: "#6B7280",
-    lineHeight: 19,
-  },
-  categoryArrowCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  selectedCategoryBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 20,
-  },
-  selectedCategoryText: {
-    fontSize: 16,
-    fontWeight: "700",
+    shadowColor: "#6366F1",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
+    elevation: 8,
+    marginTop: -8,
   },
 });
 
