@@ -17,6 +17,10 @@ export default function Layout() {
         name="Dashboard/Homepage"
         options={{ headerShown: false }}
       />
+      <Stack.Screen
+        name="Screens/Settings"
+        options={{ headerShown: false }}
+      />
 
       <Stack.Screen name="config" options={{ headerShown: false }} />
     </Stack>
