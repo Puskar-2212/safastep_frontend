@@ -22,6 +22,7 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [userPosts, setUserPosts] = useState([]);
   const [viewingUserData, setViewingUserData] = useState(null);
+  const [carbonFootprint, setCarbonFootprint] = useState(null);
   const [stats, setStats] = useState({
     posts: 0,
     ecoPoints: 0,
@@ -36,8 +37,23 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
       loadViewingUserData();
     } else if (userData) {
       loadUserPosts();
+      loadCarbonFootprint();
     }
   }, [userData, viewingUserId]);
+
+  const loadCarbonFootprint = async () => {
+    try {
+      const mobile = userData?.mobile || await AsyncStorage.getItem("mobile");
+      const response = await fetch(`${BASE_URL}/carbon-footprint/latest/${mobile}`);
+      const result = await response.json();
+
+      if (response.ok && result.success && result.hasResult) {
+        setCarbonFootprint(result.result);
+      }
+    } catch (error) {
+      console.error("Error loading carbon footprint:", error);
+    }
+  };
 
   const loadViewingUserData = async () => {
     try {
@@ -90,6 +106,7 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
       await loadViewingUserData();
     } else {
       await loadUserPosts();
+      await loadCarbonFootprint();
       if (onRefresh) await onRefresh();
     }
     setRefreshing(false);
@@ -383,6 +400,57 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
         </Text>
       </View>
 
+      {/* Carbon Footprint Card - Only show on own profile */}
+      {isOwnProfile && carbonFootprint && (
+        <View style={styles.carbonFootprintCard}>
+          <View style={styles.carbonFootprintHeader}>
+            <View style={styles.carbonFootprintIconContainer}>
+              <MaterialIcons name="cloud" size={28} color="#6366F1" />
+            </View>
+            <View style={styles.carbonFootprintInfo}>
+              <Text style={styles.carbonFootprintLabel}>Carbon Footprint</Text>
+              <View style={styles.carbonFootprintScoreRow}>
+                <Text style={styles.carbonFootprintValue}>
+                  {carbonFootprint.totalCO2} kg/day
+                </Text>
+                <View style={[
+                  styles.impactLevelBadge,
+                  { backgroundColor: 
+                    carbonFootprint.impactLevel === "Excellent" ? "#10B981" :
+                    carbonFootprint.impactLevel === "Good" ? "#3B82F6" :
+                    carbonFootprint.impactLevel === "Average" ? "#F59E0B" : "#EF4444"
+                  }
+                ]}>
+                  <Text style={styles.impactLevelText}>{carbonFootprint.impactLevel}</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+          <View style={styles.carbonFootprintStats}>
+            <View style={styles.carbonStat}>
+              <MaterialIcons name="calendar-today" size={16} color="#64748B" />
+              <Text style={styles.carbonStatText}>
+                {new Date(carbonFootprint.timestamp * 1000).toLocaleDateString('en-US', { 
+                  month: 'short', 
+                  day: 'numeric' 
+                })}
+              </Text>
+            </View>
+            <View style={styles.carbonStat}>
+              <MaterialIcons name="park" size={16} color="#10B981" />
+              <Text style={styles.carbonStatText}>{carbonFootprint.treesNeeded} trees/year</Text>
+            </View>
+          </View>
+          <Pressable 
+            style={styles.viewHistoryButton}
+            onPress={() => router.push("/Screens/CarbonFootprintHistory")}
+          >
+            <Text style={styles.viewHistoryText}>View Full History</Text>
+            <MaterialIcons name="chevron-right" size={20} color="#6366F1" />
+          </Pressable>
+        </View>
+      )}
+
       {/* Achievements */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
@@ -670,6 +738,97 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "rgba(255, 255, 255, 0.85)",
     lineHeight: 20,
+  },
+  carbonFootprintCard: {
+    marginHorizontal: 20,
+    marginBottom: 24,
+    padding: 20,
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: "#EEF2FF",
+    shadowColor: "#6366F1",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  carbonFootprintHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    marginBottom: 16,
+  },
+  carbonFootprintIconContainer: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    backgroundColor: "#EEF2FF",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  carbonFootprintInfo: {
+    flex: 1,
+  },
+  carbonFootprintLabel: {
+    fontSize: 13,
+    color: "#64748B",
+    fontWeight: "600",
+    marginBottom: 6,
+  },
+  carbonFootprintScoreRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  carbonFootprintValue: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#1E293B",
+    letterSpacing: -0.5,
+  },
+  impactLevelBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  impactLevelText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#fff",
+    letterSpacing: 0.3,
+  },
+  carbonFootprintStats: {
+    flexDirection: "row",
+    gap: 16,
+    marginBottom: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#F1F5F9",
+  },
+  carbonStat: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  carbonStatText: {
+    fontSize: 12,
+    color: "#64748B",
+    fontWeight: "600",
+  },
+  viewHistoryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 10,
+    backgroundColor: "#F8F9FE",
+    borderRadius: 12,
+  },
+  viewHistoryText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#6366F1",
   },
   section: {
     marginBottom: 24,
