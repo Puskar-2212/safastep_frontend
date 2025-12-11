@@ -17,6 +17,7 @@ import * as Animatable from "react-native-animatable";
 import { BASE_URL } from "../config";
 import CreatePost from "../Screens/CreatePost";
 import Profile from "../Screens/Profile";
+import CO2Calculator from "../Screens/CO2Calculator";
 
 const Homepage = () => {
   const params = useLocalSearchParams();
@@ -28,6 +29,7 @@ const Homepage = () => {
   const [posts, setPosts] = useState([]);
   const [activeTab, setActiveTab] = useState('home');
   const [showCreatePost, setShowCreatePost] = useState(false);
+  const [hideNavbar, setHideNavbar] = useState(false);
 
   useEffect(() => {
     loadUserData();
@@ -205,10 +207,19 @@ const Homepage = () => {
     );
   }
 
+  // Handle quiz state change
+  const handleQuizStateChange = (isShowingResults) => {
+    setHideNavbar(!isShowingResults);
+  };
+
   // Render content based on active tab
   const renderContent = () => {
     if (activeTab === 'profile') {
       return <Profile userData={userData} onRefresh={loadUserData} />;
+    }
+
+    if (activeTab === 'calculator') {
+      return <CO2Calculator onQuizStateChange={handleQuizStateChange} />;
     }
 
     // Default Home Feed
@@ -377,11 +388,16 @@ const Homepage = () => {
         </View>
       )}
 
-      {/* Content */}
-      {renderContent()}
+      {/* Content - Don't wrap calculator in extra view */}
+      {activeTab === 'calculator' ? (
+        <CO2Calculator onQuizStateChange={handleQuizStateChange} />
+      ) : (
+        renderContent()
+      )}
 
-      {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
+      {/* Bottom Navigation - Hide during quiz */}
+      {!hideNavbar && (
+        <View style={styles.bottomNav}>
         <Pressable 
           style={[styles.navItem, activeTab === 'home' && styles.navItemActive]}
           onPress={() => setActiveTab('home')}
@@ -456,6 +472,7 @@ const Homepage = () => {
           </Text>
         </Pressable>
       </View>
+      )}
 
       {/* Create Post Component */}
       <CreatePost
