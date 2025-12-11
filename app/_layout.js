@@ -25,6 +25,10 @@ export default function Layout() {
         name="Screens/UserProfile"
         options={{ headerShown: false }}
       />
+      <Stack.Screen
+        name="Screens/CarbonFootprintHistory"
+        options={{ headerShown: false }}
+      />
 
       <Stack.Screen name="config" options={{ headerShown: false }} />
     </Stack>
