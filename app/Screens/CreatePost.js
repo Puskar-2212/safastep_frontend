@@ -66,21 +66,34 @@ const CreatePost = ({ visible, onClose, onPostCreated }) => {
   ];
 
   const pickImage = async () => {
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        allowsEditing: true,
-        aspect: [4, 3],
-        quality: 0.8,
-      });
+    // Show guidance before opening camera
+    Alert.alert(
+      "Photo Guidelines",
+      "📸 For verification:\n• Include YOUR FACE clearly\n• Show the eco-action (recycling, plants, etc.)\n• Take a clear, well-lit photo\n\nThis prevents fraud and earns you Eco Points!",
+      [
+        {
+          text: "Take Photo",
+          onPress: async () => {
+            try {
+              const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ["images"],
+                allowsEditing: true,
+                aspect: [4, 3],
+                quality: 0.8,
+              });
 
-      if (!result.canceled) {
-        setNewPostImage(result.assets[0].uri);
-      }
-    } catch (error) {
-      console.error("Error picking image:", error);
-      Alert.alert("Error", "Failed to pick image");
-    }
+              if (!result.canceled) {
+                setNewPostImage(result.assets[0].uri);
+              }
+            } catch (error) {
+              console.error("Error picking image:", error);
+              Alert.alert("Error", "Failed to pick image");
+            }
+          }
+        },
+        { text: "Cancel", style: "cancel" }
+      ]
+    );
   };
 
   const handleCategorySelect = (category) => {
@@ -128,12 +141,23 @@ const CreatePost = ({ visible, onClose, onPostCreated }) => {
       const result = await response.json();
 
       if (response.ok && result.success) {
-        Alert.alert("Success", "Your eco-action has been shared!");
+        Alert.alert(
+          "Success! ✓", 
+          `Your eco-action has been verified and shared!\n\nVerification Score: ${result.post?.verificationScore || 'N/A'}/100`,
+          [{ text: "OK" }]
+        );
         resetForm();
         onPostCreated();
         onClose();
       } else {
-        Alert.alert("Error", result.detail || "Failed to create post");
+        // Handle verification failure
+        const errorDetail = result.detail || "Failed to create post";
+        
+        Alert.alert(
+          "Verification Failed",
+          errorDetail,
+          [{ text: "OK" }]
+        );
       }
     } catch (error) {
       console.error("Error creating post:", error);
