@@ -153,16 +153,12 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
 
   const handleProfilePhotoOptions = () => {
     Alert.alert(
-      "Profile Photo",
-      "Choose an option",
+      "Profile Photo Verification",
+      "For security, profile photos must be taken with your camera to verify your identity.",
       [
         {
-          text: "Take Photo",
+          text: "Take Live Photo",
           onPress: () => takePhoto(),
-        },
-        {
-          text: "Choose from Library",
-          onPress: () => pickImage(),
         },
         {
           text: "Remove Photo",
@@ -189,6 +185,7 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.8,
+        cameraType: "front", // Force front camera for selfie
       });
 
       if (!result.canceled) {
@@ -242,10 +239,16 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
       const result = await response.json();
 
       if (response.ok && result.success) {
-        Alert.alert("Success", "Profile photo updated!");
+        Alert.alert(
+          "Success! ✓", 
+          result.faceVerified 
+            ? "Profile photo updated and face verified!" 
+            : "Profile photo updated!",
+          [{ text: "OK" }]
+        );
         if (onRefresh) await onRefresh();
       } else {
-        Alert.alert("Error", result.detail || "Failed to update profile photo");
+        Alert.alert("Face Verification Failed", result.detail || "Failed to update profile photo. Please use a clear photo of your face.");
       }
     } catch (error) {
       console.error("Error uploading profile photo:", error);
