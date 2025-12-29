@@ -6,7 +6,6 @@ import {
   ScrollView,
   Pressable,
   Alert,
-  Switch,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -14,8 +13,6 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const Settings = () => {
   const router = useRouter();
-  const [notificationsEnabled, setNotificationsEnabled] = React.useState(true);
-  const [darkModeEnabled, setDarkModeEnabled] = React.useState(false);
 
   const handleLogout = async () => {
     Alert.alert(
@@ -37,42 +34,13 @@ const Settings = () => {
 
   const settingsSections = [
     {
-      title: "Preferences",
-      items: [
-        {
-          icon: "notifications",
-          label: "Push Notifications",
-          type: "toggle",
-          value: notificationsEnabled,
-          onToggle: setNotificationsEnabled,
-          color: "#6366F1",
-        },
-        {
-          icon: "dark-mode",
-          label: "Dark Mode",
-          type: "toggle",
-          value: darkModeEnabled,
-          onToggle: setDarkModeEnabled,
-          color: "#6366F1",
-        },
-        {
-          icon: "language",
-          label: "Language",
-          type: "navigate",
-          value: "English",
-          onPress: () => Alert.alert("Language", "Coming soon!"),
-          color: "#6366F1",
-        },
-      ],
-    },
-    {
       title: "Account",
       items: [
         {
           icon: "lock",
           label: "Privacy & Security",
           type: "navigate",
-          onPress: () => Alert.alert("Privacy & Security", "Coming soon!"),
+          onPress: () => router.push("/Screens/PrivacySecurity"),
           color: "#8B5CF6",
         },
         {
