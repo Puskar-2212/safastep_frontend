@@ -22,6 +22,10 @@ export default function Layout() {
         options={{ headerShown: false }}
       />
       <Stack.Screen
+        name="Screens/PrivacySecurity"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
         name="Screens/UserProfile"
         options={{ headerShown: false }}
       />
