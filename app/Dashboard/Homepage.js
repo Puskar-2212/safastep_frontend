@@ -87,7 +87,8 @@ const Homepage = () => {
             description: post.caption,
             impact: { 
               category: post.category,
-              co2: "0 kg" // You can calculate this based on category
+              co2: post.co2Offset ? `${post.co2Offset} kg` : "0 kg",
+              ecoPoints: post.ecoPoints || 0
             },
             likes: post.likesCount,
             comments: post.commentsCount,
