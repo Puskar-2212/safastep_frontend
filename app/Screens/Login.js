@@ -13,6 +13,8 @@ import {
   Text,
   TextInput,
   View,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import * as Animatable from "react-native-animatable";
 import RNPickerSelect from "react-native-picker-select";
@@ -241,9 +243,16 @@ const LoginPage = () => {
       style={styles.background}
       resizeMode="cover"
     >
+      <KeyboardAvoidingView 
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        bounces={false}
       >
         <View style={styles.overlay}>
           <Animatable.View
@@ -519,6 +528,7 @@ const LoginPage = () => {
           </View>
         </View>
       </Modal>
+      </KeyboardAvoidingView>
     </ImageBackground>
   );
 };

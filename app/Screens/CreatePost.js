@@ -9,6 +9,8 @@ import {
   Alert,
   TextInput,
   Modal,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
@@ -141,9 +143,13 @@ const CreatePost = ({ visible, onClose, onPostCreated }) => {
       const result = await response.json();
 
       if (response.ok && result.success) {
+        const rewards = result.rewards || {};
+        const ecoPoints = rewards.ecoPoints || 0;
+        const co2Offset = rewards.co2Offset || 0;
+        
         Alert.alert(
           "Success! ✓", 
-          `Your eco-action has been verified and shared!\n\nVerification Score: ${result.post?.verificationScore || 'N/A'}/100`,
+          `Your eco-action has been verified and shared!\n\n🎉 Rewards Earned:\n• ${ecoPoints} Eco Points\n• ${co2Offset} kg CO₂ Offset\n\nVerification Score: ${result.post?.verificationScore || 'N/A'}/100`,
           [{ text: "OK" }]
         );
         resetForm();
@@ -246,6 +252,11 @@ const CreatePost = ({ visible, onClose, onPostCreated }) => {
         </View>
       ) : (
         // Create Post Screen
+        <KeyboardAvoidingView 
+          style={styles.modalContainer}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        >
         <View style={styles.modalContainer}>
           <View style={styles.modalHeader}>
             <Pressable onPress={handleClose}>
@@ -268,7 +279,8 @@ const CreatePost = ({ visible, onClose, onPostCreated }) => {
             </Pressable>
           </View>
 
-          <ScrollView style={styles.modalContent}>
+          <ScrollView style={styles.modalContent} keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}>
             {selectedCategory && (
               <View
                 style={[
@@ -334,6 +346,7 @@ const CreatePost = ({ visible, onClose, onPostCreated }) => {
             </View>
           </ScrollView>
         </View>
+        </KeyboardAvoidingView>
       )}
     </Modal>
   );

@@ -10,6 +10,8 @@ import {
   TextInput,
   Image,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Link, useRouter } from 'expo-router';
@@ -132,6 +134,11 @@ const SignUp = () => {
   );
 
   return (
+    <KeyboardAvoidingView 
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+    >
     <View style={styles.container}>
       {/* Background Image */}
       <Image
@@ -143,6 +150,8 @@ const SignUp = () => {
       <ScrollView 
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        bounces={false}
       >
         <View style={styles.overlay}>
           <View style={styles.formContainer}>
@@ -384,6 +393,7 @@ const SignUp = () => {
         </View>
       </Modal>
     </View>
+    </KeyboardAvoidingView>
   );
 };
 

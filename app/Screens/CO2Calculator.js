@@ -7,6 +7,8 @@ import {
   Pressable,
   Animated,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import * as Animatable from "react-native-animatable";
@@ -544,8 +546,12 @@ const CO2Calculator = ({ onQuizStateChange }) => {
     const betterThanAverage = totalCO2 < avgGlobal;
 
     return (
+      <KeyboardAvoidingView 
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
       <View style={styles.container}>
-        <ScrollView showsVerticalScrollIndicator={false}>
+        <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
           <View style={styles.resultsContainer}>
             {/* Compact Header */}
             <View style={styles.resultsHeaderCompact}>
@@ -793,6 +799,7 @@ const CO2Calculator = ({ onQuizStateChange }) => {
           </View>
         </ScrollView>
       </View>
+      </KeyboardAvoidingView>
     );
   }
 
@@ -809,6 +816,10 @@ const CO2Calculator = ({ onQuizStateChange }) => {
   const progress = ((currentQuestion + 1) / selectedQuestions.length) * 100;
 
   return (
+    <KeyboardAvoidingView 
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
     <View style={styles.container}>
       {/* Celebrate Good Choice Animation - Fixed positioning */}
       {celebrateGoodChoice && (
@@ -831,7 +842,7 @@ const CO2Calculator = ({ onQuizStateChange }) => {
         </View>
       )}
 
-      <ScrollView showsVerticalScrollIndicator={false}>
+      <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
 
       {/* Compact Header */}
       <View style={styles.header}>
@@ -928,6 +939,7 @@ const CO2Calculator = ({ onQuizStateChange }) => {
         <View style={styles.bottomPadding} />
       </ScrollView>
     </View>
+    </KeyboardAvoidingView>
   );
 };
 
