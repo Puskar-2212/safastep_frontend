@@ -17,7 +17,7 @@ import * as Animatable from "react-native-animatable";
 import { BASE_URL } from "../config";
 import CreatePost from "../Screens/CreatePost";
 import Profile from "../Screens/Profile";
-import CO2Calculator from "../Screens/CO2Calculator";
+import CO2CalculatorLanding from "../Screens/CO2CalculatorLanding";
 
 const Homepage = () => {
   const params = useLocalSearchParams();
@@ -29,12 +29,36 @@ const Homepage = () => {
   const [posts, setPosts] = useState([]);
   const [activeTab, setActiveTab] = useState('home');
   const [showCreatePost, setShowCreatePost] = useState(false);
-  const [hideNavbar, setHideNavbar] = useState(false);
+  const [showWelcomeBanner, setShowWelcomeBanner] = useState(false);
+  const [isFirstTimeUser, setIsFirstTimeUser] = useState(false);
 
   useEffect(() => {
     loadUserData();
     loadPosts();
+    checkIfFirstTime();
   }, []);
+
+  const checkIfFirstTime = async () => {
+    try {
+      const hasLoggedInBefore = await AsyncStorage.getItem("hasLoggedInBefore");
+      if (!hasLoggedInBefore) {
+        // First time user
+        setIsFirstTimeUser(true);
+        await AsyncStorage.setItem("hasLoggedInBefore", "true");
+      } else {
+        // Returning user
+        setIsFirstTimeUser(false);
+      }
+      
+      // Show banner for 2 seconds
+      setShowWelcomeBanner(true);
+      setTimeout(() => {
+        setShowWelcomeBanner(false);
+      }, 2000);
+    } catch (error) {
+      console.error("Error checking first time user:", error);
+    }
+  };
 
   const loadUserData = async () => {
     try {
@@ -208,11 +232,6 @@ const Homepage = () => {
     );
   }
 
-  // Handle quiz state change
-  const handleQuizStateChange = (isShowingResults) => {
-    setHideNavbar(!isShowingResults);
-  };
-
   // Render content based on active tab
   const renderContent = () => {
     if (activeTab === 'profile') {
@@ -220,7 +239,7 @@ const Homepage = () => {
     }
 
     if (activeTab === 'calculator') {
-      return <CO2Calculator onQuizStateChange={handleQuizStateChange} />;
+      return <CO2CalculatorLanding />;
     }
 
     // Default Home Feed
@@ -232,20 +251,29 @@ const Homepage = () => {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        {/* Welcome Banner */}
-        <View style={styles.welcomeBanner}>
-          <View style={styles.bannerContent}>
-            <Text style={styles.bannerTitle}>
-              Welcome, {userData?.firstName}! 👋
-            </Text>
-            <Text style={styles.bannerSubtitle}>
-              Discover eco-actions from your community
-            </Text>
-          </View>
-          <View style={styles.bannerIcon}>
-            <MaterialIcons name="eco" size={40} color="#fff" />
-          </View>
-        </View>
+        {/* Welcome Banner - Show on every login with different message */}
+        {showWelcomeBanner && userData && (
+          <Animatable.View 
+            animation="fadeInDown" 
+            duration={600}
+            style={styles.welcomeBanner}
+          >
+            <View style={styles.bannerContent}>
+              <Text style={styles.bannerTitle}>
+                {isFirstTimeUser 
+                  ? `Welcome, ${userData.firstName}! 👋`
+                  : `Welcome back, ${userData.firstName}! 👋`
+                }
+              </Text>
+              <Text style={styles.bannerSubtitle}>
+                Discover eco-actions from your community
+              </Text>
+            </View>
+            <View style={styles.bannerIcon}>
+              <MaterialIcons name="eco" size={40} color="#fff" />
+            </View>
+          </Animatable.View>
+        )}
 
         {/* Posts Grid */}
         <View style={styles.postsContainer}>
@@ -391,14 +419,13 @@ const Homepage = () => {
 
       {/* Content - Don't wrap calculator in extra view */}
       {activeTab === 'calculator' ? (
-        <CO2Calculator onQuizStateChange={handleQuizStateChange} />
+        <CO2CalculatorLanding />
       ) : (
         renderContent()
       )}
 
-      {/* Bottom Navigation - Hide during quiz */}
-      {!hideNavbar && (
-        <View style={styles.bottomNav}>
+      {/* Bottom Navigation */}
+      <View style={styles.bottomNav}>
         <Pressable 
           style={[styles.navItem, activeTab === 'home' && styles.navItemActive]}
           onPress={() => setActiveTab('home')}
@@ -473,7 +500,6 @@ const Homepage = () => {
           </Text>
         </Pressable>
       </View>
-      )}
 
       {/* Create Post Component */}
       <CreatePost
