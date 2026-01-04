@@ -33,6 +33,14 @@ export default function Layout() {
         name="Screens/CarbonFootprintHistory"
         options={{ headerShown: false }}
       />
+      <Stack.Screen
+        name="Screens/CO2CalculatorLanding"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="Screens/CO2Calculator"
+        options={{ headerShown: false }}
+      />
 
       <Stack.Screen name="config" options={{ headerShown: false }} />
     </Stack>
