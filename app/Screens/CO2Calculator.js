@@ -9,13 +9,16 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  BackHandler,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import * as Animatable from "react-native-animatable";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { BASE_URL } from "../config";
+import { useRouter } from "expo-router";
 
 const CO2Calculator = ({ onQuizStateChange }) => {
+  const router = useRouter();
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [answers, setAnswers] = useState({});
   const [totalCO2, setTotalCO2] = useState(0);
@@ -26,6 +29,8 @@ const CO2Calculator = ({ onQuizStateChange }) => {
   const [currentComparison, setCurrentComparison] = useState("");
   const [celebrateGoodChoice, setCelebrateGoodChoice] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("All");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   // Notify parent about quiz state
   useEffect(() => {
@@ -33,6 +38,50 @@ const CO2Calculator = ({ onQuizStateChange }) => {
       onQuizStateChange(showResults);
     }
   }, [showResults]);
+
+  // Handle back button when showing results - go back to landing page
+  useEffect(() => {
+    if (showResults) {
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+        router.back();
+        return true;
+      });
+
+      return () => backHandler.remove();
+    }
+  }, [showResults]);
+
+  // Fetch questions from API on mount
+  useEffect(() => {
+    fetchQuestionsFromAPI();
+  }, []);
+
+  const fetchQuestionsFromAPI = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const response = await fetch(`${BASE_URL}/co2-questions/random?count=10`);
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        setSelectedQuestions(data.questions);
+        console.log(`✓ Loaded ${data.count} questions from database`);
+      } else {
+        throw new Error(data.message || "Failed to load questions");
+      }
+    } catch (err) {
+      console.error("Error fetching CO2 questions:", err);
+      setError(err.message);
+      Alert.alert(
+        "Error Loading Questions",
+        "Could not load quiz questions. Please try again later.",
+        [{ text: "OK" }]
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // All available questions - we'll randomly select from these
   const allQuestions = [
@@ -279,59 +328,6 @@ const CO2Calculator = ({ onQuizStateChange }) => {
     },
   ];
 
-  // Initialize quiz with random questions
-  useEffect(() => {
-    selectRandomQuestions();
-  }, []);
-
-  const selectRandomQuestions = () => {
-    // Separate questions by category and type
-    const transportQuestions = allQuestions.filter(q => q.category === "Transportation" && !q.dependsOn);
-    const energyQuestions = allQuestions.filter(q => q.category === "Energy" && !q.dependsOn);
-    const foodQuestions = allQuestions.filter(q => q.category === "Food");
-    const wasteQuestions = allQuestions.filter(q => q.category === "Waste");
-    const consumptionQuestions = allQuestions.filter(q => q.category === "Consumption");
-    const waterQuestions = allQuestions.filter(q => q.category === "Water");
-
-    // Randomly select questions from each category
-    const selected = [];
-    
-    // Always include 1 transport + follow-up (2 questions)
-    const transport = transportQuestions[Math.floor(Math.random() * transportQuestions.length)];
-    selected.push(transport);
-    if (transport.followUp) {
-      const followUp = allQuestions.find(q => q.id === transport.followUp);
-      if (followUp) selected.push(followUp);
-    }
-
-    // Always include 1 energy + follow-up (2 questions)
-    const energy = energyQuestions[Math.floor(Math.random() * energyQuestions.length)];
-    selected.push(energy);
-    if (energy.followUp) {
-      const followUp = allQuestions.find(q => q.id === energy.followUp);
-      if (followUp) selected.push(followUp);
-    }
-
-    // Randomly select 2 food questions
-    const shuffledFood = [...foodQuestions].sort(() => Math.random() - 0.5);
-    selected.push(...shuffledFood.slice(0, 2));
-
-    // Randomly select 1-2 waste questions
-    const shuffledWaste = [...wasteQuestions].sort(() => Math.random() - 0.5);
-    selected.push(...shuffledWaste.slice(0, Math.random() > 0.5 ? 2 : 1));
-
-    // Randomly select 1-2 consumption questions
-    const shuffledConsumption = [...consumptionQuestions].sort(() => Math.random() - 0.5);
-    selected.push(...shuffledConsumption.slice(0, Math.random() > 0.5 ? 2 : 1));
-
-    // Maybe add water question (50% chance)
-    if (Math.random() > 0.5 && waterQuestions.length > 0) {
-      selected.push(waterQuestions[0]);
-    }
-
-    // Limit to 10 questions total
-    setSelectedQuestions(selected.slice(0, 10));
-  };
 
   const getComparison = (option, co2Impact) => {
     if (option.comparison) return option.comparison;
@@ -370,54 +366,51 @@ const CO2Calculator = ({ onQuizStateChange }) => {
       setTimeout(() => setCelebrateGoodChoice(false), 1500);
     }
 
-    // Fade out animation
-    Animated.timing(fadeAnim, {
-      toValue: 0,
-      duration: 200,
-      useNativeDriver: true,
-    }).start(() => {
-      // Store answer
-      const newAnswers = {
-        ...answers,
-        [question.id]: { ...option, co2Impact, comparison },
-      };
-      setAnswers(newAnswers);
-      setTotalCO2(totalCO2 + co2Impact);
+    // Store answer immediately
+    const newAnswers = {
+      ...answers,
+      [question.id]: { ...option, co2Impact, comparison },
+    };
+    setAnswers(newAnswers);
+    const newTotal = totalCO2 + co2Impact;
+    setTotalCO2(newTotal);
 
-      // Wait a bit to show comparison, then move to next
+    // Check if this is the last question
+    const isLastQuestion = currentQuestion === selectedQuestions.length - 1;
+
+    if (isLastQuestion) {
+      // Last question - show comparison briefly then go to results
       setTimeout(() => {
         setShowComparison(false);
-        
-        // Move to next question or show results
-        if (currentQuestion < selectedQuestions.length - 1) {
-          setCurrentQuestion(currentQuestion + 1);
-        } else {
-          setShowResults(true);
-          // Save results to backend
-          saveResultsToBackend();
-        }
-
-        // Fade in animation
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }).start();
+        setShowResults(true);
+        saveResultsToBackend();
       }, 1500);
-    });
+    } else {
+      // Not last question - fade out and move to next
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start(() => {
+        // Wait a bit to show comparison, then move to next
+        setTimeout(() => {
+          setShowComparison(false);
+          setCurrentQuestion(currentQuestion + 1);
+
+          // Fade in animation
+          Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 300,
+            useNativeDriver: true,
+          }).start();
+        }, 1500);
+      });
+    }
   };
 
   const resetQuiz = () => {
-    setCurrentQuestion(0);
-    setAnswers({});
-    setTotalCO2(0);
-    setShowResults(false);
-    setShowComparison(false);
-    setCelebrateGoodChoice(false);
-    setSelectedCategory("All");
-    fadeAnim.setValue(1);
-    // Select new random questions for retake
-    selectRandomQuestions();
+    // Navigate back to landing page to show updated results
+    router.back();
   };
 
   // Get unique categories from answers
@@ -790,8 +783,8 @@ const CO2Calculator = ({ onQuizStateChange }) => {
             {/* Action Buttons */}
             <Animatable.View animation="fadeInUp" delay={800} style={styles.actionButtons}>
               <Pressable style={styles.retakeButton} onPress={resetQuiz}>
-                <MaterialIcons name="refresh" size={22} color="#fff" />
-                <Text style={styles.retakeButtonText}>Retake Quiz</Text>
+                <MaterialIcons name="arrow-back" size={22} color="#fff" />
+                <Text style={styles.retakeButtonText}>Back to Dashboard</Text>
               </Pressable>
             </Animatable.View>
 
@@ -803,11 +796,13 @@ const CO2Calculator = ({ onQuizStateChange }) => {
     );
   }
 
-  if (selectedQuestions.length === 0) {
+  if (loading || selectedQuestions.length === 0) {
     return (
       <View style={styles.loadingContainer}>
         <MaterialIcons name="eco" size={48} color="#6366F1" />
-        <Text style={styles.loadingText}>Preparing your quiz...</Text>
+        <Text style={styles.loadingText}>
+          {loading ? "Loading questions..." : "Preparing your quiz..."}
+        </Text>
       </View>
     );
   }
