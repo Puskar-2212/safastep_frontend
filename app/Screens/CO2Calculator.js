@@ -895,10 +895,6 @@ const CO2Calculator = ({ onQuizStateChange }) => {
               onPress={() => handleAnswer(option)}
             >
               <View style={styles.optionLeft}>
-                <View style={[
-                  styles.optionDot,
-                  option.isGood && styles.optionDotGood
-                ]} />
                 <Text style={styles.optionLabel}>{option.label}</Text>
               </View>
               <View style={styles.optionRight}>
