@@ -1,6 +1,6 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Link, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -18,7 +18,8 @@ import {
 } from "react-native";
 import * as Animatable from "react-native-animatable";
 import RNPickerSelect from "react-native-picker-select";
-import { BASE_URL } from "../config";
+import { BASE_URL } from "../../constants/config";
+import { signInWithEmail } from "../../utils/firebaseAuth";
 
 // Splash Screen Component
 const SplashScreen = ({ onFinish }) => {
@@ -41,6 +42,10 @@ const SplashScreen = ({ onFinish }) => {
 
 // Login Page Component
 const LoginPage = () => {
+  const [loginMethod, setLoginMethod] = useState('mobile'); // 'mobile' or 'email'
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [countryCode, setCountryCode] = useState("+977");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [pin, setPin] = useState("");
@@ -111,8 +116,8 @@ const LoginPage = () => {
       return;
     }
 
-    const fullPhoneNumber = `${countryCode}${phoneNumber}`;
     setLoading(true);
+    const fullPhoneNumber = `${countryCode}${phoneNumber}`;
 
     try {
       const response = await fetch(`${BASE_URL}/login`, {
@@ -151,6 +156,39 @@ const LoginPage = () => {
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleEmailLogin = async () => {
+    if (!email || !password) {
+      Alert.alert("Error", "Please enter email and password");
+      return;
+    }
+
+    setLoading(true);
+    const result = await signInWithEmail(email, password);
+    setLoading(false);
+
+    if (result.success) {
+      if (!result.user.emailVerified) {
+        Alert.alert(
+          "Email Not Verified",
+          "Please verify your email before logging in. Check your inbox for the verification link.",
+          [{ text: "OK" }]
+        );
+        return;
+      }
+
+      // Email verified, proceed to home
+      setSuccess(true);
+      setTimeout(() => {
+        router.push({
+          pathname: "/Dashboard/Homepage",
+          params: { mobile: result.user.email }, // Using email as identifier
+        });
+      }, 1500);
+    } else {
+      Alert.alert("Login Failed", result.error);
     }
   };
 
@@ -277,7 +315,95 @@ const LoginPage = () => {
               Sign in to continue your journey
             </Text>
 
-            {/* Phone Number */}
+            {/* Login Method Toggle */}
+            <View style={styles.methodToggle}>
+              <Pressable
+                style={[styles.methodButton, loginMethod === 'mobile' && styles.methodButtonActive]}
+                onPress={() => setLoginMethod('mobile')}
+              >
+                <MaterialIcons 
+                  name="phone" 
+                  size={20} 
+                  color={loginMethod === 'mobile' ? '#fff' : '#6B7280'} 
+                />
+                <Text style={[styles.methodButtonText, loginMethod === 'mobile' && styles.methodButtonTextActive]}>
+                  Mobile
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[styles.methodButton, loginMethod === 'email' && styles.methodButtonActive]}
+                onPress={() => setLoginMethod('email')}
+              >
+                <MaterialIcons 
+                  name="email" 
+                  size={20} 
+                  color={loginMethod === 'email' ? '#fff' : '#6B7280'} 
+                />
+                <Text style={[styles.methodButtonText, loginMethod === 'email' && styles.methodButtonTextActive]}>
+                  Email
+                </Text>
+              </Pressable>
+            </View>
+
+            {loginMethod === 'email' ? (
+              <>
+                {/* Email Login Fields */}
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Email</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Enter your email"
+                    placeholderTextColor="#9CA3AF"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    value={email}
+                    onChangeText={setEmail}
+                  />
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Password</Text>
+                  <View style={styles.pinContainer}>
+                    <TextInput
+                      style={styles.pinInput}
+                      placeholder="Enter your password"
+                      placeholderTextColor="#9CA3AF"
+                      secureTextEntry={!isPasswordVisible}
+                      value={password}
+                      onChangeText={setPassword}
+                    />
+                    <Pressable
+                      onPress={() => setIsPasswordVisible(!isPasswordVisible)}
+                      style={styles.eyeIcon}
+                    >
+                      <MaterialIcons
+                        name={isPasswordVisible ? "visibility" : "visibility-off"}
+                        size={22}
+                        color="#6B7280"
+                      />
+                    </Pressable>
+                  </View>
+                </View>
+
+                {/* Email Login Button */}
+                <Pressable
+                  style={[styles.loginButton, loading && styles.buttonDisabled]}
+                  onPress={handleEmailLogin}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <>
+                      <Text style={styles.loginButtonText}>Sign In</Text>
+                      <MaterialIcons name="arrow-forward" size={20} color="#fff" />
+                    </>
+                  )}
+                </Pressable>
+              </>
+            ) : (
+              <>
+                {/* Mobile Login Fields (Original) */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Phone Number</Text>
               <View style={styles.phoneInputContainer}>
@@ -361,16 +487,19 @@ const LoginPage = () => {
                 </>
               )}
             </Pressable>
+              </>
+            )}
 
             {/* Register Link */}
-            <Link href="./SignIn" asChild>
-              <Pressable style={styles.registerLink}>
-                <Text style={styles.registerText}>
-                  Don't have an account?{" "}
-                  <Text style={styles.registerTextBold}>Sign Up</Text>
-                </Text>
-              </Pressable>
-            </Link>
+            <Pressable 
+              style={styles.registerLink}
+              onPress={() => router.push('/Screens/SignIn')}
+            >
+              <Text style={styles.registerText}>
+                Don't have an account?{" "}
+                <Text style={styles.registerTextBold}>Sign Up</Text>
+              </Text>
+            </Pressable>
           </Animatable.View>
         </View>
       </ScrollView>
@@ -736,6 +865,70 @@ const styles = StyleSheet.create({
   registerTextBold: {
     color: "#10B981",
     fontWeight: "700",
+  },
+
+  // Method Toggle Styles
+  methodToggle: {
+    flexDirection: 'row',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 24,
+    gap: 4,
+  },
+  methodButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 10,
+    gap: 8,
+  },
+  methodButtonActive: {
+    backgroundColor: '#10B981',
+  },
+  methodButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  methodButtonTextActive: {
+    color: '#FFFFFF',
+  },
+
+  // Email Login Styles
+  input: {
+    height: 52,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    fontSize: 15,
+    color: '#111827',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  loginButton: {
+    backgroundColor: '#10B981',
+    height: 56,
+    borderRadius: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  loginButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
 
   // Success Modal Styles
