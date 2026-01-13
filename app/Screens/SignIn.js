@@ -12,13 +12,24 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Link, useRouter } from 'expo-router';
+import { signUpWithEmail } from '../../utils/firebaseAuth';
+
+const signInWithGoogle = async () => {
+  Alert.alert('Not Available', 'Google Sign-In not available in Expo Go');
+  return { success: false };
+};
 
 const SignUp = () => {
+  const [signupMethod, setSignupMethod] = useState('mobile'); // 'mobile' or 'email'
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [year, setYear] = useState(null);
   const [month, setMonth] = useState(null);
   const [day, setDay] = useState(null);
@@ -26,9 +37,12 @@ const SignUp = () => {
   const [confirmPin, setConfirmPin] = useState('');
   const [isPinVisible, setIsPinVisible] = useState(false);
   const [isConfirmPinVisible, setIsConfirmPinVisible] = useState(false);
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
   const [isYearModalVisible, setIsYearModalVisible] = useState(false);
   const [isMonthModalVisible, setIsMonthModalVisible] = useState(false);
   const [isDayModalVisible, setIsDayModalVisible] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   const router = useRouter();
 
@@ -46,6 +60,106 @@ const SignUp = () => {
 
   // Days (1-31)
   const days = Array.from({ length: 31 }, (_, i) => i + 1);
+
+  const handleEmailSignup = async () => {
+    // Validation
+    if (!firstName.trim() || !lastName.trim()) {
+      Alert.alert('Error', 'Please enter your full name');
+      return;
+    }
+
+    if (!email.trim() || !email.includes('@')) {
+      Alert.alert('Error', 'Please enter a valid email');
+      return;
+    }
+
+    if (!password || password.length < 6) {
+      Alert.alert('Error', 'Password must be at least 6 characters');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      Alert.alert('Error', 'Passwords do not match');
+      return;
+    }
+
+    if (!year || !month || !day) {
+      Alert.alert('Error', 'Please select your date of birth');
+      return;
+    }
+
+    setLoading(true);
+
+    // Create Firebase account
+    const result = await signUpWithEmail(email, password);
+
+    if (result.success) {
+      // Check if email is verified
+      if (!result.user.emailVerified) {
+        Alert.alert(
+          'Verify Your Email', 
+          'We sent a verification link to your email. Please verify your email before continuing.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                // Stay on signup page or go to a "check email" screen
+                router.push('/Screens/Login');
+              },
+            },
+          ]
+        );
+      } else {
+        // Email is verified, proceed to profile setup
+        router.push({
+          pathname: './ProfileSetup',
+          params: {
+            firstName,
+            lastName,
+            email,
+            uid: result.user.uid,
+            year,
+            month,
+            day,
+          },
+        });
+      }
+    } else {
+      Alert.alert('Error', result.error);
+    }
+
+    setLoading(false);
+  };
+
+  const handleGoogleSignup = async () => {
+    setLoading(true);
+
+    const result = await signInWithGoogle();
+
+    if (result.success) {
+      // TODO: Send user data to your backend
+      Alert.alert('Success', 'Signed in with Google!', [
+        {
+          text: 'OK',
+          onPress: () => {
+            // Navigate to home or profile setup
+            router.push({
+              pathname: './ProfileSetup',
+              params: {
+                email: result.user.email,
+                displayName: result.user.displayName,
+                uid: result.user.uid,
+              },
+            });
+          },
+        },
+      ]);
+    } else {
+      Alert.alert('Error', result.error);
+    }
+
+    setLoading(false);
+  };
 
   const handleSubmit = () => {
     // Validation
@@ -164,8 +278,198 @@ const SignUp = () => {
               <Text style={styles.subtitle}>Every step reduces carbon</Text>
             </View>
 
+            {/* Signup Method Toggle */}
+            <View style={styles.methodToggle}>
+              <Pressable
+                style={[styles.methodButton, signupMethod === 'mobile' && styles.methodButtonActive]}
+                onPress={() => setSignupMethod('mobile')}
+              >
+                <MaterialIcons 
+                  name="phone" 
+                  size={20} 
+                  color={signupMethod === 'mobile' ? '#fff' : '#6B7280'} 
+                />
+                <Text style={[styles.methodButtonText, signupMethod === 'mobile' && styles.methodButtonTextActive]}>
+                  Mobile
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[styles.methodButton, signupMethod === 'email' && styles.methodButtonActive]}
+                onPress={() => setSignupMethod('email')}
+              >
+                <MaterialIcons 
+                  name="email" 
+                  size={20} 
+                  color={signupMethod === 'email' ? '#fff' : '#6B7280'} 
+                />
+                <Text style={[styles.methodButtonText, signupMethod === 'email' && styles.methodButtonTextActive]}>
+                  Email
+                </Text>
+              </Pressable>
+            </View>
+
             {/* Form Section */}
             <View style={styles.form}>
+              {signupMethod === 'email' ? (
+                <>
+                  {/* Email Signup Fields */}
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>First Name</Text>
+                    <TextInput
+                      placeholder="Enter your first name"
+                      placeholderTextColor="#9CA3AF"
+                      value={firstName}
+                      onChangeText={setFirstName}
+                      style={styles.input}
+                      autoCapitalize="words"
+                    />
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Last Name</Text>
+                    <TextInput
+                      placeholder="Enter your last name"
+                      placeholderTextColor="#9CA3AF"
+                      value={lastName}
+                      onChangeText={setLastName}
+                      style={styles.input}
+                      autoCapitalize="words"
+                    />
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Email</Text>
+                    <TextInput
+                      placeholder="Enter your email"
+                      placeholderTextColor="#9CA3AF"
+                      value={email}
+                      onChangeText={setEmail}
+                      style={styles.input}
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                    />
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Password</Text>
+                    <View style={styles.pinContainer}>
+                      <TextInput
+                        placeholder="Enter password (min 6 characters)"
+                        placeholderTextColor="#9CA3AF"
+                        secureTextEntry={!isPasswordVisible}
+                        value={password}
+                        onChangeText={setPassword}
+                        style={styles.pinInput}
+                      />
+                      <Pressable
+                        onPress={() => setIsPasswordVisible(!isPasswordVisible)}
+                        style={styles.eyeIcon}
+                      >
+                        <MaterialIcons
+                          name={isPasswordVisible ? 'visibility' : 'visibility-off'}
+                          size={22}
+                          color="#6B7280"
+                        />
+                      </Pressable>
+                    </View>
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Confirm Password</Text>
+                    <View style={styles.pinContainer}>
+                      <TextInput
+                        placeholder="Re-enter your password"
+                        placeholderTextColor="#9CA3AF"
+                        secureTextEntry={!isConfirmPasswordVisible}
+                        value={confirmPassword}
+                        onChangeText={setConfirmPassword}
+                        style={styles.pinInput}
+                      />
+                      <Pressable
+                        onPress={() => setIsConfirmPasswordVisible(!isConfirmPasswordVisible)}
+                        style={styles.eyeIcon}
+                      >
+                        <MaterialIcons
+                          name={isConfirmPasswordVisible ? 'visibility' : 'visibility-off'}
+                          size={22}
+                          color="#6B7280"
+                        />
+                      </Pressable>
+                    </View>
+                  </View>
+
+                  {/* Date of Birth */}
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Date of Birth</Text>
+                    <View style={styles.dateContainer}>
+                      <Pressable
+                        style={styles.datePickerButton}
+                        onPress={() => setIsDayModalVisible(true)}
+                      >
+                        <Text style={[styles.datePickerText, !day && styles.placeholder]}>
+                          {day || 'Day'}
+                        </Text>
+                        <MaterialIcons name="arrow-drop-down" size={20} color="#6B7280" />
+                      </Pressable>
+
+                      <Pressable
+                        style={[styles.datePickerButton, styles.monthPicker]}
+                        onPress={() => setIsMonthModalVisible(true)}
+                      >
+                        <Text style={[styles.datePickerText, !month && styles.placeholder]}>
+                          {month ? months[month - 1].substring(0, 3) : 'Month'}
+                        </Text>
+                        <MaterialIcons name="arrow-drop-down" size={20} color="#6B7280" />
+                      </Pressable>
+
+                      <Pressable
+                        style={styles.datePickerButton}
+                        onPress={() => setIsYearModalVisible(true)}
+                      >
+                        <Text style={[styles.datePickerText, !year && styles.placeholder]}>
+                          {year || 'Year'}
+                        </Text>
+                        <MaterialIcons name="arrow-drop-down" size={20} color="#6B7280" />
+                      </Pressable>
+                    </View>
+                  </View>
+
+                  {/* Submit Button */}
+                  <Pressable 
+                    style={[styles.button, loading && styles.buttonDisabled]} 
+                    onPress={handleEmailSignup}
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <>
+                        <Text style={styles.buttonText}>Create Account</Text>
+                        <MaterialIcons name="arrow-forward" size={20} color="#fff" />
+                      </>
+                    )}
+                  </Pressable>
+
+                  {/* Divider */}
+                  <View style={styles.divider}>
+                    <View style={styles.dividerLine} />
+                    <Text style={styles.dividerText}>OR</Text>
+                    <View style={styles.dividerLine} />
+                  </View>
+
+                  {/* Google Sign-In Button */}
+                  <Pressable 
+                    style={styles.googleButton} 
+                    onPress={handleGoogleSignup}
+                    disabled={loading}
+                  >
+                    <MaterialIcons name="g-translate" size={24} color="#4285F4" />
+                    <Text style={styles.googleButtonText}>Continue with Google</Text>
+                  </Pressable>
+                </>
+              ) : (
+                <>
+                  {/* Mobile Signup Fields (Original) */}
               {/* Name Fields */}
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>First Name</Text>
@@ -297,6 +601,8 @@ const SignUp = () => {
                 <Text style={styles.buttonText}>Create Account</Text>
                 <MaterialIcons name="arrow-forward" size={20} color="#fff" />
               </Pressable>
+                </>
+              )}
 
               {/* Login Link */}
               <Link href="./Login" asChild>
@@ -605,6 +911,69 @@ const styles = StyleSheet.create({
   selectedText: {
     color: '#FFFFFF',
     fontWeight: '700',
+  },
+  methodToggle: {
+    flexDirection: 'row',
+    backgroundColor: '#F3F4F6',
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 24,
+    gap: 4,
+  },
+  methodButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: 10,
+    gap: 8,
+  },
+  methodButtonActive: {
+    backgroundColor: '#10B981',
+  },
+  methodButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+  },
+  methodButtonTextActive: {
+    color: '#FFFFFF',
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#E5E7EB',
+  },
+  dividerText: {
+    marginHorizontal: 16,
+    fontSize: 14,
+    color: '#9CA3AF',
+    fontWeight: '500',
+  },
+  googleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 56,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    gap: 12,
+  },
+  googleButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
 });
 
