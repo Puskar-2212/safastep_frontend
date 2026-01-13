@@ -16,7 +16,7 @@ import {
 import { MaterialIcons } from "@expo/vector-icons";
 import RNPickerSelect from "react-native-picker-select";
 import * as Animatable from "react-native-animatable";
-import { BASE_URL } from "../config";
+import { BASE_URL } from "../../constants/config";
 
 const Verification = () => {
   const params = useLocalSearchParams();
