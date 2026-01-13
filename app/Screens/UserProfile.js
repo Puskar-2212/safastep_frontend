@@ -11,7 +11,7 @@ import {
 import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { BASE_URL } from "../config";
+import { BASE_URL } from "../../constants/config";
 
 const UserProfile = () => {
   const params = useLocalSearchParams();

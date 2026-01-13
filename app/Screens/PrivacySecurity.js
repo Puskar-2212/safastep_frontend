@@ -15,7 +15,7 @@ import {
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { BASE_URL } from "../config";
+import { BASE_URL } from "../../constants/config";
 
 const PrivacySecurity = () => {
   const router = useRouter();

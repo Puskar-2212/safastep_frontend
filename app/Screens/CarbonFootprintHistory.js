@@ -12,7 +12,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Animatable from "react-native-animatable";
-import { BASE_URL } from "../config";
+import { BASE_URL } from "../../constants/config";
 
 const { width } = Dimensions.get("window");
 

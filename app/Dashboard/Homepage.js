@@ -14,7 +14,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Animatable from "react-native-animatable";
-import { BASE_URL } from "../config";
+import { BASE_URL } from "../../constants/config";
 import CreatePost from "../Screens/CreatePost";
 import Profile from "../Screens/Profile";
 import CO2CalculatorLanding from "../Screens/CO2CalculatorLanding";

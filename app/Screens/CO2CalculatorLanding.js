@@ -10,7 +10,7 @@ import {
 import { MaterialIcons } from "@expo/vector-icons";
 import * as Animatable from "react-native-animatable";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { BASE_URL } from "../config";
+import { BASE_URL } from "../../constants/config";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 
