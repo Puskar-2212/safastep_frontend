@@ -16,17 +16,37 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { BASE_URL } from "../../constants/config";
+import { changePassword } from "../../utils/firebaseAuth";
 
 const PrivacySecurity = () => {
   const router = useRouter();
+  const [userIdentifier, setUserIdentifier] = useState(null);
+  const [isEmailUser, setIsEmailUser] = useState(false);
   const [changePinModalVisible, setChangePinModalVisible] = useState(false);
+  const [changePasswordModalVisible, setChangePasswordModalVisible] = useState(false);
   const [currentPin, setCurrentPin] = useState("");
   const [newPin, setNewPin] = useState("");
   const [confirmPin, setConfirmPin] = useState("");
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [isCurrentPinVisible, setIsCurrentPinVisible] = useState(false);
   const [isNewPinVisible, setIsNewPinVisible] = useState(false);
   const [isConfirmPinVisible, setIsConfirmPinVisible] = useState(false);
+  const [isCurrentPasswordVisible, setIsCurrentPasswordVisible] = useState(false);
+  const [isNewPasswordVisible, setIsNewPasswordVisible] = useState(false);
+  const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Check if user is email or mobile user
+  React.useEffect(() => {
+    const checkUserType = async () => {
+      const identifier = await AsyncStorage.getItem("mobile");
+      setUserIdentifier(identifier);
+      setIsEmailUser(identifier?.includes('@'));
+    };
+    checkUserType();
+  }, []);
 
   const handleChangePin = async () => {
     // Validation
@@ -89,6 +109,63 @@ const PrivacySecurity = () => {
       Alert.alert("Error", "Failed to change PIN. Please try again.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    // Validation
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      Alert.alert("Error", "Please fill all fields");
+      return;
+    }
+
+    if (newPassword.length < 8) {
+      Alert.alert("Error", "Password must be at least 8 characters");
+      return;
+    }
+
+    // Check for password strength
+    const hasUpperCase = /[A-Z]/.test(newPassword);
+    const hasLowerCase = /[a-z]/.test(newPassword);
+    const hasNumber = /[0-9]/.test(newPassword);
+    
+    if (!hasUpperCase || !hasLowerCase || !hasNumber) {
+      Alert.alert(
+        'Weak Password', 
+        'Password must contain:\n• At least one uppercase letter\n• At least one lowercase letter\n• At least one number'
+      );
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      Alert.alert("Error", "New password and confirm password do not match");
+      return;
+    }
+
+    if (currentPassword === newPassword) {
+      Alert.alert("Error", "New password must be different from current password");
+      return;
+    }
+
+    setLoading(true);
+
+    const result = await changePassword(currentPassword, newPassword);
+    setLoading(false);
+
+    if (result.success) {
+      Alert.alert("Success", result.message, [
+        {
+          text: "OK",
+          onPress: () => {
+            setChangePasswordModalVisible(false);
+            setCurrentPassword("");
+            setNewPassword("");
+            setConfirmPassword("");
+          },
+        },
+      ]);
+    } else {
+      Alert.alert("Error", result.error);
     }
   };
 
@@ -162,23 +239,43 @@ const PrivacySecurity = () => {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Security</Text>
             <View style={styles.card}>
-              <Pressable
-                style={styles.item}
-                onPress={() => setChangePinModalVisible(true)}
-              >
-                <View style={styles.itemLeft}>
-                  <View style={[styles.iconContainer, { backgroundColor: "#EDE9FE" }]}>
-                    <MaterialIcons name="lock" size={22} color="#8B5CF6" />
+              {isEmailUser ? (
+                <Pressable
+                  style={styles.item}
+                  onPress={() => setChangePasswordModalVisible(true)}
+                >
+                  <View style={styles.itemLeft}>
+                    <View style={[styles.iconContainer, { backgroundColor: "#EDE9FE" }]}>
+                      <MaterialIcons name="lock" size={22} color="#8B5CF6" />
+                    </View>
+                    <View style={styles.itemTextContainer}>
+                      <Text style={styles.itemLabel}>Change Password</Text>
+                      <Text style={styles.itemDescription}>
+                        Update your login password
+                      </Text>
+                    </View>
                   </View>
-                  <View style={styles.itemTextContainer}>
-                    <Text style={styles.itemLabel}>Change PIN</Text>
-                    <Text style={styles.itemDescription}>
-                      Update your 4-digit login PIN
-                    </Text>
+                  <MaterialIcons name="chevron-right" size={24} color="#94A3B8" />
+                </Pressable>
+              ) : (
+                <Pressable
+                  style={styles.item}
+                  onPress={() => setChangePinModalVisible(true)}
+                >
+                  <View style={styles.itemLeft}>
+                    <View style={[styles.iconContainer, { backgroundColor: "#EDE9FE" }]}>
+                      <MaterialIcons name="lock" size={22} color="#8B5CF6" />
+                    </View>
+                    <View style={styles.itemTextContainer}>
+                      <Text style={styles.itemLabel}>Change PIN</Text>
+                      <Text style={styles.itemDescription}>
+                        Update your 4-digit login PIN
+                      </Text>
+                    </View>
                   </View>
-                </View>
-                <MaterialIcons name="chevron-right" size={24} color="#94A3B8" />
-              </Pressable>
+                  <MaterialIcons name="chevron-right" size={24} color="#94A3B8" />
+                </Pressable>
+              )}
             </View>
           </View>
 
@@ -340,6 +437,144 @@ const PrivacySecurity = () => {
                   <Pressable
                     style={styles.cancelButton}
                     onPress={() => setChangePinModalVisible(false)}
+                  >
+                    <Text style={styles.cancelButtonText}>Cancel</Text>
+                  </Pressable>
+                </ScrollView>
+              </View>
+            </KeyboardAvoidingView>
+          </View>
+        </Modal>
+
+        {/* Change Password Modal */}
+        <Modal
+          visible={changePasswordModalVisible}
+          animationType="slide"
+          transparent={true}
+          onRequestClose={() => setChangePasswordModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <KeyboardAvoidingView 
+              behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+              style={styles.modalContainer}
+            >
+              <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Change Password</Text>
+                  <Pressable onPress={() => setChangePasswordModalVisible(false)}>
+                    <MaterialIcons name="close" size={24} color="#64748B" />
+                  </Pressable>
+                </View>
+
+                <ScrollView 
+                  showsVerticalScrollIndicator={false}
+                  keyboardShouldPersistTaps="handled"
+                >
+                  {/* Current Password */}
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Current Password</Text>
+                    <View style={styles.pinContainer}>
+                      <TextInput
+                        placeholder="Enter current password"
+                        placeholderTextColor="#9CA3AF"
+                        secureTextEntry={!isCurrentPasswordVisible}
+                        value={currentPassword}
+                        onChangeText={setCurrentPassword}
+                        style={styles.pinInput}
+                        autoCapitalize="none"
+                      />
+                      <Pressable
+                        style={styles.eyeIcon}
+                        onPress={() => setIsCurrentPasswordVisible(!isCurrentPasswordVisible)}
+                      >
+                        <MaterialIcons
+                          name={isCurrentPasswordVisible ? "visibility" : "visibility-off"}
+                          size={20}
+                          color="#6B7280"
+                        />
+                      </Pressable>
+                    </View>
+                  </View>
+
+                  {/* New Password */}
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>New Password</Text>
+                    <View style={styles.pinContainer}>
+                      <TextInput
+                        placeholder="Enter new password"
+                        placeholderTextColor="#9CA3AF"
+                        secureTextEntry={!isNewPasswordVisible}
+                        value={newPassword}
+                        onChangeText={setNewPassword}
+                        style={styles.pinInput}
+                        autoCapitalize="none"
+                      />
+                      <Pressable
+                        style={styles.eyeIcon}
+                        onPress={() => setIsNewPasswordVisible(!isNewPasswordVisible)}
+                      >
+                        <MaterialIcons
+                          name={isNewPasswordVisible ? "visibility" : "visibility-off"}
+                          size={20}
+                          color="#6B7280"
+                        />
+                      </Pressable>
+                    </View>
+                  </View>
+
+                  {/* Confirm Password */}
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Confirm New Password</Text>
+                    <View style={styles.pinContainer}>
+                      <TextInput
+                        placeholder="Re-enter new password"
+                        placeholderTextColor="#9CA3AF"
+                        secureTextEntry={!isConfirmPasswordVisible}
+                        value={confirmPassword}
+                        onChangeText={setConfirmPassword}
+                        style={styles.pinInput}
+                        autoCapitalize="none"
+                      />
+                      <Pressable
+                        style={styles.eyeIcon}
+                        onPress={() => setIsConfirmPasswordVisible(!isConfirmPasswordVisible)}
+                      >
+                        <MaterialIcons
+                          name={isConfirmPasswordVisible ? "visibility" : "visibility-off"}
+                          size={20}
+                          color="#6B7280"
+                        />
+                      </Pressable>
+                    </View>
+                  </View>
+
+                  {/* Info */}
+                  <View style={styles.infoBox}>
+                    <MaterialIcons name="info-outline" size={20} color="#6366F1" />
+                    <Text style={styles.infoText}>
+                      Password must be at least 8 characters with uppercase, lowercase, and number
+                    </Text>
+                  </View>
+
+                  {/* Buttons */}
+                  <Pressable
+                    style={[styles.button, loading && styles.disabledButton]}
+                    onPress={handleChangePassword}
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <>
+                        <MaterialIcons name="check" size={20} color="#fff" />
+                        <Text style={styles.buttonText}>Change Password</Text>
+                      </>
+                    )}
+                  </Pressable>
+
+                  <Pressable
+                    style={styles.cancelButton}
+                    onPress={() => setChangePasswordModalVisible(false)}
                   >
                     <Text style={styles.cancelButtonText}>Cancel</Text>
                   </Pressable>

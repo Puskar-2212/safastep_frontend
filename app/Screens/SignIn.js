@@ -17,6 +17,7 @@ import {
 import { MaterialIcons } from '@expo/vector-icons';
 import { Link, useRouter } from 'expo-router';
 import { signUpWithEmail } from '../../utils/firebaseAuth';
+import { BASE_URL } from '../../constants/config';
 
 const signInWithGoogle = async () => {
   Alert.alert('Not Available', 'Google Sign-In not available in Expo Go');
@@ -73,8 +74,22 @@ const SignUp = () => {
       return;
     }
 
-    if (!password || password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters');
+    // Stronger password validation
+    if (!password || password.length < 8) {
+      Alert.alert('Error', 'Password must be at least 8 characters');
+      return;
+    }
+
+    // Check for password strength
+    const hasUpperCase = /[A-Z]/.test(password);
+    const hasLowerCase = /[a-z]/.test(password);
+    const hasNumber = /[0-9]/.test(password);
+    
+    if (!hasUpperCase || !hasLowerCase || !hasNumber) {
+      Alert.alert(
+        'Weak Password', 
+        'Password must contain:\n• At least one uppercase letter\n• At least one lowercase letter\n• At least one number'
+      );
       return;
     }
 
@@ -94,6 +109,35 @@ const SignUp = () => {
     const result = await signUpWithEmail(email, password);
 
     if (result.success) {
+      // Save user data to backend immediately (even before email verification)
+      try {
+        const backendResponse = await fetch(`${BASE_URL}/signup-email`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            firstName,
+            lastName,
+            dateOfBirth: {
+              year: parseInt(year),
+              month: parseInt(month),
+              day: parseInt(day),
+            },
+            email,
+            firebaseUid: result.user.uid,
+          }),
+        });
+
+        const backendResult = await backendResponse.json();
+        
+        if (!backendResponse.ok && !backendResult.detail?.includes('already registered')) {
+          console.error('Failed to save to backend:', backendResult);
+        }
+      } catch (error) {
+        console.error('Error saving to backend:', error);
+      }
+
       // Check if email is verified
       if (!result.user.emailVerified) {
         Alert.alert(
@@ -103,14 +147,13 @@ const SignUp = () => {
             {
               text: 'OK',
               onPress: () => {
-                // Stay on signup page or go to a "check email" screen
                 router.push('/Screens/Login');
               },
             },
           ]
         );
       } else {
-        // Email is verified, proceed to profile setup
+        // Email is verified, proceed to profile setup for profile picture
         router.push({
           pathname: './ProfileSetup',
           params: {

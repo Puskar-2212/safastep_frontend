@@ -19,7 +19,7 @@ import {
 import * as Animatable from "react-native-animatable";
 import RNPickerSelect from "react-native-picker-select";
 import { BASE_URL } from "../../constants/config";
-import { signInWithEmail } from "../../utils/firebaseAuth";
+import { signInWithEmail, resetPassword } from "../../utils/firebaseAuth";
 
 // Splash Screen Component
 const SplashScreen = ({ onFinish }) => {
@@ -46,6 +46,8 @@ const LoginPage = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  const [forgotPasswordModalVisible, setForgotPasswordModalVisible] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
   const [countryCode, setCountryCode] = useState("+977");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [pin, setPin] = useState("");
@@ -167,10 +169,10 @@ const LoginPage = () => {
 
     setLoading(true);
     const result = await signInWithEmail(email, password);
-    setLoading(false);
 
     if (result.success) {
       if (!result.user.emailVerified) {
+        setLoading(false);
         Alert.alert(
           "Email Not Verified",
           "Please verify your email before logging in. Check your inbox for the verification link.",
@@ -179,16 +181,79 @@ const LoginPage = () => {
         return;
       }
 
-      // Email verified, proceed to home
-      setSuccess(true);
-      setTimeout(() => {
-        router.push({
-          pathname: "/Dashboard/Homepage",
-          params: { mobile: result.user.email }, // Using email as identifier
-        });
-      }, 1500);
+      // Email verified, check if user has profile picture
+      try {
+        const response = await fetch(`${BASE_URL}/user/by-identifier/${result.user.email}`);
+        const userData = await response.json();
+
+        setLoading(false);
+
+        if (response.ok && userData.success) {
+          // Check if user has profile picture
+          if (!userData.user.profilePicture) {
+            // No profile picture, go to ProfileSetup
+            router.push({
+              pathname: "/Screens/ProfileSetup",
+              params: {
+                email: result.user.email,
+                uid: result.user.uid,
+              },
+            });
+          } else {
+            // Has profile picture, proceed to homepage
+            setSuccess(true);
+            await AsyncStorage.setItem("mobile", result.user.email);
+            setTimeout(() => {
+              router.push({
+                pathname: "/Dashboard/Homepage",
+                params: { mobile: result.user.email },
+              });
+            }, 1500);
+          }
+        } else {
+          // User doesn't exist in backend (shouldn't happen), go to homepage anyway
+          setSuccess(true);
+          await AsyncStorage.setItem("mobile", result.user.email);
+          setTimeout(() => {
+            router.push({
+              pathname: "/Dashboard/Homepage",
+              params: { mobile: result.user.email },
+            });
+          }, 1500);
+        }
+      } catch (error) {
+        setLoading(false);
+        console.error("Error checking user:", error);
+        Alert.alert("Error", "Failed to connect to server");
+      }
     } else {
+      setLoading(false);
       Alert.alert("Login Failed", result.error);
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!resetEmail || !resetEmail.includes('@')) {
+      Alert.alert('Error', 'Please enter a valid email address');
+      return;
+    }
+
+    setLoading(true);
+    const result = await resetPassword(resetEmail);
+    setLoading(false);
+
+    if (result.success) {
+      Alert.alert('Success', result.message, [
+        {
+          text: 'OK',
+          onPress: () => {
+            setForgotPasswordModalVisible(false);
+            setResetEmail('');
+          }
+        }
+      ]);
+    } else {
+      Alert.alert('Error', result.error);
     }
   };
 
@@ -384,6 +449,17 @@ const LoginPage = () => {
                     </Pressable>
                   </View>
                 </View>
+
+                {/* Forgot Password Link */}
+                <Pressable
+                  onPress={() => {
+                    setResetEmail(email);
+                    setForgotPasswordModalVisible(true);
+                  }}
+                  style={styles.forgotPinContainer}
+                >
+                  <Text style={styles.forgotPinText}>Forgot Password?</Text>
+                </Pressable>
 
                 {/* Email Login Button */}
                 <Pressable
@@ -653,6 +729,56 @@ const LoginPage = () => {
                   </Pressable>
                 </>
               )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Forgot Password Modal */}
+      <Modal visible={forgotPasswordModalVisible} animationType="slide" transparent={true}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Reset Password</Text>
+              <Pressable
+                onPress={() => {
+                  setForgotPasswordModalVisible(false);
+                  setResetEmail('');
+                }}
+              >
+                <MaterialIcons name="close" size={24} color="#374151" />
+              </Pressable>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={styles.modalDescription}>
+                Enter your email address and we'll send you a link to reset your password
+              </Text>
+
+              <View style={styles.modalInputGroup}>
+                <Text style={styles.modalLabel}>Email Address</Text>
+                <TextInput
+                  style={styles.modalInput}
+                  placeholder="Enter your email"
+                  placeholderTextColor="#9CA3AF"
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                  value={resetEmail}
+                  onChangeText={setResetEmail}
+                />
+              </View>
+
+              <Pressable
+                style={[styles.button, loading && styles.disabledButton]}
+                onPress={handleForgotPassword}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.buttonText}>Send Reset Link</Text>
+                )}
+              </Pressable>
             </ScrollView>
           </View>
         </View>
