@@ -123,8 +123,12 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
           style: "destructive",
           onPress: async () => {
             try {
-              const mobile = userData?.mobile || await AsyncStorage.getItem("mobile");
-              const response = await fetch(`${BASE_URL}/posts/${postId}?mobile=${mobile}`, {
+              const identifier = userData?.mobile || userData?.email || await AsyncStorage.getItem("mobile");
+              
+              // Check if identifier is email or mobile
+              const paramName = identifier.includes('@') ? 'email' : 'mobile';
+              
+              const response = await fetch(`${BASE_URL}/posts/${postId}?${paramName}=${identifier}`, {
                 method: "DELETE",
               });
 

@@ -62,19 +62,21 @@ const Homepage = () => {
 
   const loadUserData = async () => {
     try {
-      const mobile = params.mobile || (await AsyncStorage.getItem("mobile"));
+      // Get identifier (mobile or email) from params or AsyncStorage
+      let identifier = params.mobile || (await AsyncStorage.getItem("mobile"));
 
-      if (!mobile) {
+      if (!identifier) {
         router.push("/Screens/Login");
         return;
       }
 
-      const response = await fetch(`${BASE_URL}/user/${mobile}`);
+      // Use the new endpoint that works with both mobile and email
+      const response = await fetch(`${BASE_URL}/user/by-identifier/${identifier}`);
       const result = await response.json();
 
       if (response.ok && result.success) {
         setUserData(result.user);
-        await AsyncStorage.setItem("mobile", mobile);
+        await AsyncStorage.setItem("mobile", identifier); // Store identifier (works for both mobile and email)
       } else {
         Alert.alert("Error", "Failed to load user data");
       }
@@ -90,8 +92,8 @@ const Homepage = () => {
     try {
       const mobile = await AsyncStorage.getItem("mobile");
       
-      // Fetch posts from backend
-      const response = await fetch(`${BASE_URL}/posts`);
+      // Fetch posts from backend with userId to check liked status
+      const response = await fetch(`${BASE_URL}/posts?userId=${mobile}`);
       const result = await response.json();
 
       if (response.ok && result.success) {
@@ -117,9 +119,11 @@ const Homepage = () => {
             likes: post.likesCount,
             comments: post.commentsCount,
             timeAgo: timeAgo,
-            liked: post.likes.includes(mobile),
+            liked: post.liked, // Now comes from backend
             categoryId: post.categoryId,
-            mobile: post.mobile
+            mobile: post.mobile,
+            email: post.email,
+            identifier: post.identifier
           };
         });
         
@@ -153,10 +157,16 @@ const Homepage = () => {
 
   const handleLike = async (postId) => {
     try {
-      const mobile = await AsyncStorage.getItem("mobile");
+      const identifier = await AsyncStorage.getItem("mobile");
       
       const formData = new FormData();
-      formData.append('mobile', mobile);
+      
+      // Check if identifier is email or mobile
+      if (identifier.includes('@')) {
+        formData.append('email', identifier);
+      } else {
+        formData.append('mobile', identifier);
+      }
 
       const response = await fetch(`${BASE_URL}/posts/${postId}/like`, {
         method: 'POST',
@@ -179,7 +189,7 @@ const Homepage = () => {
     }
   };
 
-  const handleDeletePost = (postId, postMobile) => {
+  const handleDeletePost = (postId, postOwner) => {
     Alert.alert(
       "Delete Post",
       "Are you sure you want to delete this post?",
@@ -190,15 +200,18 @@ const Homepage = () => {
           style: "destructive",
           onPress: async () => {
             try {
-              const mobile = await AsyncStorage.getItem("mobile");
+              const identifier = await AsyncStorage.getItem("mobile");
               
               // Check if user owns this post
-              if (mobile !== postMobile) {
+              if (identifier !== postOwner) {
                 Alert.alert("Error", "You can only delete your own posts");
                 return;
               }
 
-              const response = await fetch(`${BASE_URL}/posts/${postId}?mobile=${mobile}`, {
+              // Check if identifier is email or mobile
+              const paramName = identifier.includes('@') ? 'email' : 'mobile';
+
+              const response = await fetch(`${BASE_URL}/posts/${postId}?${paramName}=${identifier}`, {
                 method: "DELETE",
               });
 
@@ -319,10 +332,11 @@ const Homepage = () => {
               </View>
 
               {/* Delete button - only show for user's own posts */}
-              {userData?.mobile === post.mobile && (
+              {(userData?.mobile === post.mobile || userData?.email === post.email || 
+                userData?.mobile === post.identifier || userData?.email === post.identifier) && (
                 <Pressable
                   style={styles.deletePostButton}
-                  onPress={() => handleDeletePost(post.id, post.mobile)}
+                  onPress={() => handleDeletePost(post.id, post.identifier || post.mobile || post.email)}
                 >
                   <MaterialIcons name="delete" size={20} color="#fff" />
                 </Pressable>

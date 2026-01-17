@@ -117,10 +117,17 @@ const CreatePost = ({ visible, onClose, onPostCreated }) => {
     setUploading(true);
 
     try {
-      const mobile = await AsyncStorage.getItem("mobile");
+      const identifier = await AsyncStorage.getItem("mobile"); // This stores both mobile and email
 
       const formData = new FormData();
-      formData.append("mobile", mobile);
+      
+      // Check if identifier is email or mobile
+      if (identifier.includes('@')) {
+        formData.append("email", identifier);
+      } else {
+        formData.append("mobile", identifier);
+      }
+      
       formData.append("caption", newPostCaption);
       formData.append("category", selectedCategory.name);
       formData.append("categoryId", selectedCategory.id);

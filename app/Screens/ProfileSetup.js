@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
 import * as Animatable from 'react-native-animatable';
 import { BASE_URL } from '../../constants/config';
@@ -24,11 +25,13 @@ const ProfileSetup = () => {
   const [profileImage, setProfileImage] = useState(null);
   const [uploading, setUploading] = useState(false);
 
+  const isEmailUser = params.email && params.uid; // Check if this is an email signup
+
   // Request permissions on mount
   React.useEffect(() => {
     (async () => {
       if (Platform.OS !== 'web') {
-        const { status: cameraStatus } = await ImagePicker.requestCameraPermissionsAsync();
+        const { status: cameraStatus} = await ImagePicker.requestCameraPermissionsAsync();
         const { status: libraryStatus } = await ImagePicker.requestMediaLibraryPermissionsAsync();
         
         if (cameraStatus !== 'granted' || libraryStatus !== 'granted') {
@@ -110,13 +113,15 @@ const ProfileSetup = () => {
       const uriParts = profileImage.split('.');
       const fileType = uriParts[uriParts.length - 1];
 
+      const identifier = isEmailUser ? params.email : params.mobile;
+
       formData.append('file', {
         uri: profileImage,
-        name: `profile_${params.mobile}_${Date.now()}.${fileType}`,
+        name: `profile_${identifier}_${Date.now()}.${fileType}`,
         type: `image/${fileType}`,
       });
 
-      formData.append('mobile', params.mobile);
+      formData.append(isEmailUser ? 'email' : 'mobile', identifier);
 
       // Upload to backend
       const response = await fetch(`${BASE_URL}/upload-profile-picture`, {
@@ -130,11 +135,15 @@ const ProfileSetup = () => {
       const result = await response.json();
 
       if (response.ok && result.success) {
-        Alert.alert('Success', 'Profile picture uploaded successfully! Please login to continue.', [
+        await AsyncStorage.setItem("mobile", identifier);
+        Alert.alert('Success', 'Profile picture uploaded successfully!', [
           {
             text: 'OK',
             onPress: () => {
-              router.push('/Screens/Login');
+              router.push({
+                pathname: '/Dashboard/Homepage',
+                params: { mobile: identifier },
+              });
             },
           },
         ]);
@@ -150,18 +159,24 @@ const ProfileSetup = () => {
   };
 
   const skipForNow = () => {
+    const identifier = isEmailUser ? params.email : params.mobile;
+    
     Alert.alert(
       'Skip Profile Picture?',
-      'You can add a profile picture later from your profile settings. Please login to continue.',
+      'You can add a profile picture later from your profile settings.',
       [
         {
           text: 'Cancel',
           style: 'cancel',
         },
         {
-          text: 'Skip & Login',
-          onPress: () => {
-            router.push('/Screens/Login');
+          text: 'Skip & Continue',
+          onPress: async () => {
+            await AsyncStorage.setItem("mobile", identifier);
+            router.push({
+              pathname: '/Dashboard/Homepage',
+              params: { mobile: identifier },
+            });
           },
         },
       ]
