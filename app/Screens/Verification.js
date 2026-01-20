@@ -10,11 +10,13 @@ import {
   View,
   ActivityIndicator,
   ScrollView,
+  Platform,
+  KeyboardAvoidingView,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import RNPickerSelect from "react-native-picker-select";
 import * as Animatable from "react-native-animatable";
-import { BASE_URL } from "../config";
+import { BASE_URL } from "../../constants/config";
 
 const Verification = () => {
   const params = useLocalSearchParams();
@@ -97,26 +99,52 @@ const Verification = () => {
 
     try {
       // Step 1: Verify OTP
+      const verifyPayload = {
+        mobile: `${countryCode}${mobile}`,
+        otp: otp,
+        userData: {
+          firstName: userData.firstName,
+          lastName: userData.lastName,
+          dateOfBirth: {
+            year: userData.dateOfBirth.year,
+            month: userData.dateOfBirth.month,
+            day: userData.dateOfBirth.day,
+          },
+          pin: userData.pin,
+        },
+      };
+
+      console.log(
+        "Sending OTP verification request with payload:",
+        verifyPayload
+      );
+
       const verifyResponse = await fetch(`${BASE_URL}/verify-otp`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mobile: `${countryCode}${mobile}`,
-          otp: otp,
-          userData: {
-            firstName: userData.firstName,
-            lastName: userData.lastName,
-            dateOfBirth: {
-              year: userData.dateOfBirth.year,
-              month: userData.dateOfBirth.month,
-              day: userData.dateOfBirth.day,
-            },
-            pin: userData.pin,
-          },
-        }),
+        body: JSON.stringify(verifyPayload),
       });
 
+      console.log("OTP Verify Response Status:", verifyResponse.status);
+
       const verifyData = await verifyResponse.json();
+      console.log("OTP Verify Response Data:", verifyData);
+
+      if (!verifyResponse.ok) {
+        console.error(
+          "OTP verification failed with status:",
+          verifyResponse.status
+        );
+        console.error("Error details:", verifyData);
+        Alert.alert(
+          "Error",
+          verifyData.message ||
+            verifyData.detail ||
+            `OTP verification failed (${verifyResponse.status})`
+        );
+        setOtpLoading(false);
+        return;
+      }
 
       if (verifyResponse.ok && verifyData.success) {
         console.log("OTP verified successfully.");
@@ -142,18 +170,28 @@ const Verification = () => {
           body: JSON.stringify(dataToStore),
         });
 
+        console.log("Signup Response Status:", signupResponse.status);
+
         const signupResult = await signupResponse.json();
+        console.log("Signup Response Data:", signupResult);
 
         if (signupResponse.ok) {
           console.log("User data stored successfully.");
-          
+
+          setOtpLoading(false);
+
           Alert.alert(
             "Success",
-            "Account created successfully! Please login to continue.",
+            "Account created successfully! Let's set up your profile.",
             [
               {
                 text: "OK",
-                onPress: () => router.push("/Screens/Login"),
+                onPress: () => {
+                  // Add a delay to ensure Alert is dismissed before navigation
+                  setTimeout(() => {
+                    navigateToProfileSetup();
+                  }, 300);
+                },
               },
             ]
           );
@@ -168,15 +206,49 @@ const Verification = () => {
               signupResult.detail || "Failed to create account."
             );
           }
+          setOtpLoading(false);
         }
       } else {
         Alert.alert("Error", verifyData.message || "OTP verification failed.");
+        setOtpLoading(false);
       }
     } catch (error) {
       console.error("Error during OTP verification or signup:", error);
+      console.error("Error stack:", error.stack);
       Alert.alert("Error", "An error occurred. Please try again.");
-    } finally {
       setOtpLoading(false);
+    }
+  };
+
+  // Cross-platform navigation handler
+  const navigateToProfileSetup = () => {
+    try {
+      if (Platform.OS === "web") {
+        // For web, try both approaches
+        router.push({
+          pathname: "/Screens/ProfileSetup",
+          params: { mobile: `${countryCode}${mobile}` }
+        }).catch((err) => {
+          console.warn("router.push failed on web, trying replace:", err);
+          router.replace({
+            pathname: "/Screens/ProfileSetup",
+            params: { mobile: `${countryCode}${mobile}` }
+          });
+        });
+      } else {
+        // For native (iOS, Android)
+        router.push({
+          pathname: "/Screens/ProfileSetup",
+          params: { mobile: `${countryCode}${mobile}` }
+        });
+      }
+    } catch (error) {
+      console.error("Navigation error:", error);
+      // Fallback: try replace
+      router.replace({
+        pathname: "/Screens/ProfileSetup",
+        params: { mobile: `${countryCode}${mobile}` }
+      });
     }
   };
 
@@ -186,9 +258,16 @@ const Verification = () => {
       style={styles.background}
       resizeMode="cover"
     >
+      <KeyboardAvoidingView 
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      >
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        bounces={false}
       >
         <View style={styles.overlay}>
           <Animatable.View
@@ -285,7 +364,9 @@ const Verification = () => {
                   ) : (
                     <>
                       <MaterialIcons name="send" size={20} color="#fff" />
-                      <Text style={styles.buttonText}>Send Verification Code</Text>
+                      <Text style={styles.buttonText}>
+                        Send Verification Code
+                      </Text>
                     </>
                   )}
                 </Pressable>
@@ -321,14 +402,22 @@ const Verification = () => {
                     <ActivityIndicator size="small" color="#fff" />
                   ) : (
                     <>
-                      <MaterialIcons name="check-circle" size={20} color="#fff" />
-                      <Text style={styles.buttonText}>Verify & Create Account</Text>
+                      <MaterialIcons
+                        name="check-circle"
+                        size={20}
+                        color="#fff"
+                      />
+                      <Text style={styles.buttonText}>
+                        Verify & Create Account
+                      </Text>
                     </>
                   )}
                 </Pressable>
 
                 <View style={styles.resendContainer}>
-                  <Text style={styles.resendText}>Didn't receive the code? </Text>
+                  <Text style={styles.resendText}>
+                    Didn't receive the code?{" "}
+                  </Text>
                   <Pressable
                     onPress={handleSendOtp}
                     disabled={loading}
@@ -352,6 +441,7 @@ const Verification = () => {
           </Animatable.View>
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
     </ImageBackground>
   );
 };
