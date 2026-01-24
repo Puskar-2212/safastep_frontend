@@ -1,20 +1,22 @@
-import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Pressable,
-  Image,
-  Alert,
-  RefreshControl,
-  ActionSheetIOS,
-  Platform,
-} from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
-import * as ImagePicker from "expo-image-picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
+import {
+    Alert,
+    Image,
+    Modal,
+    Platform,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View
+} from "react-native";
 import { BASE_URL } from "../../constants/config";
 
 const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
@@ -27,6 +29,16 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
     posts: 0,
     ecoPoints: 0,
   });
+  
+  // Edit profile modal state
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editForm, setEditForm] = useState({
+    firstName: "",
+    lastName: "",
+    dateOfBirth: new Date(),
+  });
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   // Check if viewing own profile or another user's profile
   const isOwnProfile = !viewingUserId || userData?.mobile === viewingUserId;
@@ -153,6 +165,77 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
 
   const handleSettingsMenu = () => {
     router.push("/Screens/Settings");
+  };
+
+  const handleEditProfile = () => {
+    // Initialize form with current user data
+    setEditForm({
+      firstName: userData?.firstName || "",
+      lastName: userData?.lastName || "",
+      dateOfBirth: userData?.dateOfBirth 
+        ? new Date(userData.dateOfBirth.year, userData.dateOfBirth.month - 1, userData.dateOfBirth.day)
+        : new Date(),
+    });
+    setEditModalVisible(true);
+  };
+
+  const handleDateChange = (event, selectedDate) => {
+    setShowDatePicker(Platform.OS === 'ios');
+    if (selectedDate) {
+      setEditForm({ ...editForm, dateOfBirth: selectedDate });
+    }
+  };
+
+  const handleSaveProfile = async () => {
+    if (!editForm.firstName.trim() || !editForm.lastName.trim()) {
+      Alert.alert("Error", "First name and last name are required");
+      return;
+    }
+
+    setIsUpdating(true);
+    try {
+      const identifier = userData?.mobile || userData?.email;
+      const formData = new FormData();
+      
+      if (userData?.mobile) {
+        formData.append("mobile", userData.mobile);
+      } else if (userData?.email) {
+        formData.append("email", userData.email);
+      }
+      
+      formData.append("firstName", editForm.firstName.trim());
+      formData.append("lastName", editForm.lastName.trim());
+      
+      const dobObject = {
+        day: editForm.dateOfBirth.getDate(),
+        month: editForm.dateOfBirth.getMonth() + 1,
+        year: editForm.dateOfBirth.getFullYear(),
+      };
+      formData.append("dateOfBirth", JSON.stringify(dobObject));
+
+      const response = await fetch(`${BASE_URL}/update-profile`, {
+        method: "PUT",
+        body: formData,
+        headers: {
+          Accept: "application/json",
+        },
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        Alert.alert("Success", "Profile updated successfully!");
+        setEditModalVisible(false);
+        if (onRefresh) await onRefresh();
+      } else {
+        Alert.alert("Error", result.detail || "Failed to update profile");
+      }
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      Alert.alert("Error", "Failed to update profile");
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
   const handleProfilePhotoOptions = () => {
@@ -380,7 +463,7 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
         {/* Action Buttons - only show for own profile */}
         {isOwnProfile && (
           <View style={styles.actionButtons}>
-            <Pressable style={styles.primaryButton}>
+            <Pressable style={styles.primaryButton} onPress={handleEditProfile}>
               <MaterialIcons name="edit" size={20} color="#fff" />
               <Text style={styles.primaryButtonText}>Edit Profile</Text>
             </Pressable>
@@ -546,6 +629,94 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
       </View>
 
       <View style={styles.bottomPadding} />
+
+      {/* Edit Profile Modal */}
+      <Modal
+        visible={editModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setEditModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Edit Profile</Text>
+              <Pressable onPress={() => setEditModalVisible(false)}>
+                <MaterialIcons name="close" size={24} color="#64748B" />
+              </Pressable>
+            </View>
+
+            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>First Name</Text>
+                <TextInput
+                  style={styles.formInput}
+                  value={editForm.firstName}
+                  onChangeText={(text) => setEditForm({ ...editForm, firstName: text })}
+                  placeholder="Enter first name"
+                  placeholderTextColor="#94A3B8"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Last Name</Text>
+                <TextInput
+                  style={styles.formInput}
+                  value={editForm.lastName}
+                  onChangeText={(text) => setEditForm({ ...editForm, lastName: text })}
+                  placeholder="Enter last name"
+                  placeholderTextColor="#94A3B8"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Date of Birth</Text>
+                <Pressable
+                  style={styles.datePickerButton}
+                  onPress={() => setShowDatePicker(true)}
+                >
+                  <MaterialIcons name="calendar-today" size={20} color="#6366F1" />
+                  <Text style={styles.datePickerText}>
+                    {editForm.dateOfBirth.toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                    })}
+                  </Text>
+                </Pressable>
+              </View>
+
+              {showDatePicker && (
+                <DateTimePicker
+                  value={editForm.dateOfBirth}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onChange={handleDateChange}
+                  maximumDate={new Date()}
+                />
+              )}
+            </ScrollView>
+
+            <View style={styles.modalFooter}>
+              <Pressable
+                style={styles.cancelButton}
+                onPress={() => setEditModalVisible(false)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.saveButton, isUpdating && styles.saveButtonDisabled]}
+                onPress={handleSaveProfile}
+                disabled={isUpdating}
+              >
+                <Text style={styles.saveButtonText}>
+                  {isUpdating ? "Saving..." : "Save Changes"}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 };
@@ -970,6 +1141,119 @@ const styles = StyleSheet.create({
   },
   bottomPadding: {
     height: 100,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: "80%",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 10,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#1E293B",
+    letterSpacing: -0.3,
+  },
+  modalBody: {
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+  },
+  formGroup: {
+    marginBottom: 20,
+  },
+  formLabel: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#475569",
+    marginBottom: 8,
+    letterSpacing: 0.2,
+  },
+  formInput: {
+    backgroundColor: "#F8FAFC",
+    borderWidth: 2,
+    borderColor: "#E2E8F0",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: "#1E293B",
+    fontWeight: "600",
+  },
+  datePickerButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 2,
+    borderColor: "#E2E8F0",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  datePickerText: {
+    fontSize: 16,
+    color: "#1E293B",
+    fontWeight: "600",
+    flex: 1,
+  },
+  modalFooter: {
+    flexDirection: "row",
+    gap: 12,
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+    borderTopWidth: 1,
+    borderTopColor: "#F1F5F9",
+  },
+  cancelButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: "#F1F5F9",
+    alignItems: "center",
+  },
+  cancelButtonText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#64748B",
+  },
+  saveButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: "#6366F1",
+    alignItems: "center",
+    shadowColor: "#6366F1",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  saveButtonDisabled: {
+    opacity: 0.6,
+  },
+  saveButtonText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#fff",
   },
 });
 

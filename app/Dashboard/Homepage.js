@@ -1,23 +1,24 @@
-import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Pressable,
-  Image,
-  ActivityIndicator,
-  Alert,
-  RefreshControl,
-} from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
+import {
+    ActivityIndicator,
+    Alert,
+    Image,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
+} from "react-native";
 import * as Animatable from "react-native-animatable";
 import { BASE_URL } from "../../constants/config";
-import CreatePost from "../Screens/CreatePost";
-import Profile from "../Screens/Profile";
 import CO2CalculatorLanding from "../Screens/CO2CalculatorLanding";
+import CreatePost from "../Screens/CreatePost";
+import ExploreMap from "../Screens/ExploreMap";
+import Profile from "../Screens/Profile";
 
 const Homepage = () => {
   const params = useLocalSearchParams();
@@ -255,6 +256,10 @@ const Homepage = () => {
       return <CO2CalculatorLanding />;
     }
 
+    if (activeTab === 'explore') {
+      return <ExploreMap />;
+    }
+
     // Default Home Feed
     return (
       <ScrollView
@@ -311,10 +316,12 @@ const Homepage = () => {
                   <Pressable
                     style={styles.userBadge}
                     onPress={() => {
-                      if (userData?.mobile !== post.mobile) {
+                      const currentUserIdentifier = userData?.mobile || userData?.email;
+                      const postOwnerIdentifier = post.identifier || post.mobile || post.email;
+                      
+                      if (currentUserIdentifier !== postOwnerIdentifier) {
                         // Navigate to other user's profile
-                        // URL encode the mobile number to preserve the + sign
-                        router.push(`/Screens/UserProfile?mobile=${encodeURIComponent(post.mobile)}`);
+                        router.push(`/Screens/UserProfile?mobile=${encodeURIComponent(postOwnerIdentifier)}`);
                       }
                     }}
                   >
@@ -322,9 +329,22 @@ const Homepage = () => {
                       <MaterialIcons name="person" size={16} color="#fff" />
                     </View>
                     <Text style={styles.overlayUserName}>
-                      {userData?.mobile === post.mobile ? post.user.name : "Anonymous User"}
+                      {(() => {
+                        // Get current user's identifier
+                        const currentUserIdentifier = userData?.mobile || userData?.email;
+                        // Get post owner's identifier
+                        const postOwnerIdentifier = post.identifier || post.mobile || post.email;
+                        // Check if current user is the post owner
+                        const isOwnPost = currentUserIdentifier === postOwnerIdentifier;
+                        
+                        return isOwnPost ? post.user.name : "Anonymous User";
+                      })()}
                     </Text>
-                    {userData?.mobile !== post.mobile && (
+                    {(() => {
+                      const currentUserIdentifier = userData?.mobile || userData?.email;
+                      const postOwnerIdentifier = post.identifier || post.mobile || post.email;
+                      return currentUserIdentifier !== postOwnerIdentifier;
+                    })() && (
                       <MaterialIcons name="chevron-right" size={16} color="#fff" />
                     )}
                   </Pressable>
@@ -332,8 +352,11 @@ const Homepage = () => {
               </View>
 
               {/* Delete button - only show for user's own posts */}
-              {(userData?.mobile === post.mobile || userData?.email === post.email || 
-                userData?.mobile === post.identifier || userData?.email === post.identifier) && (
+              {(() => {
+                const currentUserIdentifier = userData?.mobile || userData?.email;
+                const postOwnerIdentifier = post.identifier || post.mobile || post.email;
+                return currentUserIdentifier === postOwnerIdentifier;
+              })() && (
                 <Pressable
                   style={styles.deletePostButton}
                   onPress={() => handleDeletePost(post.id, post.identifier || post.mobile || post.email)}

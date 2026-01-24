@@ -1,20 +1,20 @@
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  Pressable,
-  Image,
-  Alert,
-  ActivityIndicator,
-  Platform,
-  KeyboardAvoidingView,
-  ScrollView,
-} from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useState } from 'react';
+import {
+    ActivityIndicator,
+    Alert,
+    Image,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
+} from 'react-native';
 import * as Animatable from 'react-native-animatable';
 import { BASE_URL } from '../../constants/config';
 
@@ -115,24 +115,38 @@ const ProfileSetup = () => {
 
       const identifier = isEmailUser ? params.email : params.mobile;
 
+      // Determine proper MIME type
+      let mimeType = 'image/jpeg'; // default
+      if (fileType.toLowerCase() === 'png') {
+        mimeType = 'image/png';
+      } else if (fileType.toLowerCase() === 'jpg' || fileType.toLowerCase() === 'jpeg') {
+        mimeType = 'image/jpeg';
+      }
+
       formData.append('file', {
         uri: profileImage,
-        name: `profile_${identifier}_${Date.now()}.${fileType}`,
-        type: `image/${fileType}`,
+        name: `profile_${identifier.replace('@', '_').replace('.', '_')}_${Date.now()}.${fileType}`,
+        type: mimeType,
       });
 
       formData.append(isEmailUser ? 'email' : 'mobile', identifier);
+
+      console.log('Uploading profile picture:', {
+        identifier,
+        isEmailUser,
+        fileType,
+        mimeType
+      });
 
       // Upload to backend
       const response = await fetch(`${BASE_URL}/upload-profile-picture`, {
         method: 'POST',
         body: formData,
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+        // Don't set Content-Type header - let the browser set it with boundary
       });
 
       const result = await response.json();
+      console.log('Upload response:', result);
 
       if (response.ok && result.success) {
         await AsyncStorage.setItem("mobile", identifier);
@@ -148,11 +162,12 @@ const ProfileSetup = () => {
           },
         ]);
       } else {
-        Alert.alert('Error', result.message || 'Failed to upload profile picture');
+        console.error('Upload failed:', result);
+        Alert.alert('Error', result.detail || result.message || 'Failed to upload profile picture');
       }
     } catch (error) {
       console.error('Error uploading profile picture:', error);
-      Alert.alert('Error', 'Failed to upload profile picture. Please try again.');
+      Alert.alert('Error', `Failed to upload profile picture: ${error.message}`);
     } finally {
       setUploading(false);
     }
