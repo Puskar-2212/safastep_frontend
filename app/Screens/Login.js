@@ -239,6 +239,23 @@ const LoginPage = () => {
     }
 
     setLoading(true);
+
+    // First, check if user exists in database
+    try {
+      const checkResponse = await fetch(`${BASE_URL}/user/by-identifier/${resetEmail}`);
+      
+      if (!checkResponse.ok) {
+        setLoading(false);
+        Alert.alert('Error', 'This email is not registered. Please sign up first.');
+        return;
+      }
+    } catch (error) {
+      setLoading(false);
+      Alert.alert('Error', 'Failed to verify email. Please try again.');
+      return;
+    }
+
+    // User exists, send reset email
     const result = await resetPassword(resetEmail);
     setLoading(false);
 

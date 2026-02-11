@@ -7,7 +7,6 @@
     "icon": "./assets/images/logo.jpeg",
     "scheme": "Safastep",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true
     },
@@ -34,9 +33,6 @@
           "backgroundColor": "#ffffff"
         }
       ]
-    ],
-    "experiments": {
-      "typedRoutes": true
-    }
+    ]
   }
 }

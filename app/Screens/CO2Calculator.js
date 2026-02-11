@@ -1,21 +1,123 @@
-import React, { useState, useEffect } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Pressable,
-  Animated,
+  AlertCircle,
+  AlertTriangle,
+  ArrowLeft,
+  ArrowLeftRight,
+  Bike,
+  Building2,
+  Calendar,
+  CalendarDays,
+  Car,
+  Carrot,
+  CheckCircle2,
+  ChevronRight,
+  Cloud,
+  Droplet,
+  Fuel,
+  Home,
+  Info,
+  Leaf,
+  Lightbulb,
+  PartyPopper,
+  Plane,
+  Power,
+  Recycle,
+  Ruler,
+  Salad,
+  Shirt,
+  ShoppingBag,
+  ShowerHead,
+  Smartphone,
+  Sparkles,
+  Sun,
+  Thermometer,
+  ThumbsUp,
+  Trash2,
+  Trees,
+  TrendingDown,
+  TrendingUp,
+  UtensilsCrossed,
+  Waves,
+  Wheat,
+  Wrench,
+  Zap
+} from "lucide-react-native";
+import React, { useEffect, useState } from "react";
+import {
   Alert,
+  Animated,
+  BackHandler,
   KeyboardAvoidingView,
   Platform,
-  BackHandler,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
 import * as Animatable from "react-native-animatable";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { BASE_URL } from "../../constants/config";
-import { useRouter } from "expo-router";
+
+/**
+ * Icon Helper Component
+ * Maps MaterialIcons names to Lucide React Native icons for backward compatibility
+ * @param {string} name - Icon name (MaterialIcons format)
+ * @param {number} size - Icon size in pixels (default: 24)
+ * @param {string} color - Icon color (default: "#000")
+ * @returns {JSX.Element} Lucide icon component
+ */
+const Icon = ({ name, size = 24, color = "#000", ...props }) => {
+  const iconMap = {
+    'stars': Sparkles,
+    'eco': Leaf,
+    'check-circle': CheckCircle2,
+    'wb-sunny': Sun,
+    'thermostat': Thermometer,
+    'restaurant': Salad,
+    'restaurant-menu': UtensilsCrossed,
+    'recycling': Recycle,
+    'local-dining': Carrot,
+    'agriculture': Wheat,
+    'water-drop': Droplet,
+    'waves': Waves,
+    'checkroom': Shirt,
+    'phone-android': Smartphone,
+    'build': Wrench,
+    'shower': ShowerHead,
+    'celebration': PartyPopper,
+    'info': Info,
+    'warning': AlertTriangle,
+    'error': AlertCircle,
+    'trending-down': TrendingDown,
+    'trending-up': TrendingUp,
+    'compare-arrows': ArrowLeftRight,
+    'lightbulb': Lightbulb,
+    'arrow-back': ArrowLeft,
+    'directions-car': Car,
+    'bolt': Zap,
+    'delete': Trash2,
+    'shopping-bag': ShoppingBag,
+    'cloud': Cloud,
+    'chevron-right': ChevronRight,
+    'flight': Plane,
+    'straighten': Ruler,
+    'power': Power,
+    'home': Home,
+    'today': Calendar,
+    'calendar-today': CalendarDays,
+    'park': Trees,
+    'local-gas-station': Fuel,
+    'directions-bike': Bike,
+    'thumb-up': ThumbsUp,
+    'assessment': Building2,
+    'pie-chart': Building2
+  };
+  
+  const IconComponent = iconMap[name] || Info;
+  return <IconComponent size={size} color={color} {...props} />;
+};
 
 const CO2Calculator = ({ onQuizStateChange }) => {
   const router = useRouter();
@@ -27,6 +129,7 @@ const CO2Calculator = ({ onQuizStateChange }) => {
   const [selectedQuestions, setSelectedQuestions] = useState([]);
   const [showComparison, setShowComparison] = useState(false);
   const [currentComparison, setCurrentComparison] = useState("");
+  const [currentComparisonIcon, setCurrentComparisonIcon] = useState("info");
   const [celebrateGoodChoice, setCelebrateGoodChoice] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [loading, setLoading] = useState(true);
@@ -126,7 +229,8 @@ const CO2Calculator = ({ onQuizStateChange }) => {
           label: "Bike/Walk", 
           value: "bike", 
           co2: 0,
-          comparison: "Zero emissions! You're a hero! 🌟",
+          comparison: "Zero emissions! You're a hero!",
+          comparisonIcon: "stars",
           isGood: true
         },
       ],
@@ -156,7 +260,7 @@ const CO2Calculator = ({ onQuizStateChange }) => {
       question: "How often do you fly?",
       funFact: "One round-trip flight = 1-2 tons of CO₂!",
       options: [
-        { label: "Never", value: "never", co2: 0, comparison: "Great choice! ✈️❌", isGood: true },
+        { label: "Never", value: "never", co2: 0, comparison: "Great choice!", comparisonIcon: "check-circle", isGood: true },
         { label: "Once a year", value: "yearly", co2: 0.3, comparison: "~1 ton CO₂/year" },
         { label: "2-3 times/year", value: "occasional", co2: 0.8, comparison: "~3 tons CO₂/year" },
         { label: "Monthly", value: "frequent", co2: 3, comparison: "~12 tons CO₂/year", isGood: false },
@@ -174,8 +278,8 @@ const CO2Calculator = ({ onQuizStateChange }) => {
         { label: "Coal-based", value: "coal", co2: 0.95, comparison: "Highest emissions", isGood: false },
         { label: "Natural gas", value: "gas", co2: 0.45, comparison: "50% less than coal" },
         { label: "Mixed grid", value: "mixed", co2: 0.5, comparison: "Average emissions" },
-        { label: "Renewable", value: "renewable", co2: 0.05, comparison: "90% cleaner! 🌱", isGood: true },
-        { label: "Solar panels", value: "solar", co2: 0, comparison: "Zero emissions! ☀️", isGood: true },
+        { label: "Renewable", value: "renewable", co2: 0.05, comparison: "90% cleaner!", comparisonIcon: "eco", isGood: true },
+        { label: "Solar panels", value: "solar", co2: 0, comparison: "Zero emissions!", comparisonIcon: "wb-sunny", isGood: true },
       ],
       followUp: "energy_usage",
     },
@@ -205,7 +309,7 @@ const CO2Calculator = ({ onQuizStateChange }) => {
         { label: "Electric heater/AC", value: "electric", co2: 2.5, comparison: "High energy use" },
         { label: "Gas heating", value: "gas", co2: 1.8, comparison: "Moderate emissions" },
         { label: "Heat pump", value: "heat_pump", co2: 0.8, comparison: "70% more efficient!", isGood: true },
-        { label: "Minimal use", value: "minimal", co2: 0.3, comparison: "Great conservation! 🌡️", isGood: true },
+        { label: "Minimal use", value: "minimal", co2: 0.3, comparison: "Great conservation!", comparisonIcon: "thermostat", isGood: true },
       ],
     },
     // Food questions
@@ -220,8 +324,8 @@ const CO2Calculator = ({ onQuizStateChange }) => {
         { label: "Heavy meat eater", value: "heavy_meat", co2: 7.2, comparison: "Highest food impact", isGood: false },
         { label: "Moderate meat", value: "moderate_meat", co2: 5.6, comparison: "Average diet" },
         { label: "Low meat", value: "low_meat", co2: 4.7, comparison: "Better choice!" },
-        { label: "Vegetarian", value: "vegetarian", co2: 3.8, comparison: "50% less than meat! 🥗", isGood: true },
-        { label: "Vegan", value: "vegan", co2: 2.9, comparison: "Lowest food impact! 🌱", isGood: true },
+        { label: "Vegetarian", value: "vegetarian", co2: 3.8, comparison: "50% less than meat!", comparisonIcon: "restaurant", isGood: true },
+        { label: "Vegan", value: "vegan", co2: 2.9, comparison: "Lowest food impact!", comparisonIcon: "eco", isGood: true },
       ],
     },
     {
@@ -234,8 +338,8 @@ const CO2Calculator = ({ onQuizStateChange }) => {
       options: [
         { label: "A lot", value: "high", co2: 1.2, comparison: "Try meal planning!", isGood: false },
         { label: "Some", value: "medium", co2: 0.6, comparison: "Average waste" },
-        { label: "Very little", value: "low", co2: 0.2, comparison: "Great job! 🍽️", isGood: true },
-        { label: "Almost none", value: "minimal", co2: 0.05, comparison: "Excellent! Zero waste! ♻️", isGood: true },
+        { label: "Very little", value: "low", co2: 0.2, comparison: "Great job!", comparisonIcon: "restaurant-menu", isGood: true },
+        { label: "Almost none", value: "minimal", co2: 0.05, comparison: "Excellent! Zero waste!", comparisonIcon: "recycling", isGood: true },
       ],
     },
     {
@@ -248,8 +352,8 @@ const CO2Calculator = ({ onQuizStateChange }) => {
       options: [
         { label: "Rarely", value: "rarely", co2: 0.8, comparison: "High transport emissions" },
         { label: "Sometimes", value: "sometimes", co2: 0.4, comparison: "Moderate impact" },
-        { label: "Often", value: "often", co2: 0.15, comparison: "Good choice! 🥕", isGood: true },
-        { label: "Always", value: "always", co2: 0.05, comparison: "Farm to table! 🌾", isGood: true },
+        { label: "Often", value: "often", co2: 0.15, comparison: "Good choice!", comparisonIcon: "local-dining", isGood: true },
+        { label: "Always", value: "always", co2: 0.05, comparison: "Farm to table!", comparisonIcon: "agriculture", isGood: true },
       ],
     },
     // Waste questions
@@ -263,8 +367,8 @@ const CO2Calculator = ({ onQuizStateChange }) => {
       options: [
         { label: "No recycling", value: "no_recycle", co2: 0.5, comparison: "Please recycle!", isGood: false },
         { label: "Some recycling", value: "some_recycle", co2: 0.3, comparison: "Good start!" },
-        { label: "Regular recycling", value: "regular_recycle", co2: 0.15, comparison: "Great habit! ♻️", isGood: true },
-        { label: "Compost + recycle", value: "compost", co2: 0.05, comparison: "Zero waste hero! 🌱", isGood: true },
+        { label: "Regular recycling", value: "regular_recycle", co2: 0.15, comparison: "Great habit!", comparisonIcon: "recycling", isGood: true },
+        { label: "Compost + recycle", value: "compost", co2: 0.05, comparison: "Zero waste hero!", comparisonIcon: "eco", isGood: true },
       ],
     },
     {
@@ -277,8 +381,8 @@ const CO2Calculator = ({ onQuizStateChange }) => {
       options: [
         { label: "Use frequently", value: "high", co2: 0.6, comparison: "Try reusables!", isGood: false },
         { label: "Use sometimes", value: "medium", co2: 0.3, comparison: "Reduce more!" },
-        { label: "Rarely use", value: "low", co2: 0.1, comparison: "Good effort! 🥤", isGood: true },
-        { label: "Never use", value: "none", co2: 0, comparison: "Plastic-free! 🌊", isGood: true },
+        { label: "Rarely use", value: "low", co2: 0.1, comparison: "Good effort!", comparisonIcon: "water-drop", isGood: true },
+        { label: "Never use", value: "none", co2: 0, comparison: "Plastic-free!", comparisonIcon: "waves", isGood: true },
       ],
     },
     // Consumption questions
@@ -293,8 +397,8 @@ const CO2Calculator = ({ onQuizStateChange }) => {
         { label: "Very frequently", value: "very_frequent", co2: 2.5, comparison: "High consumption", isGood: false },
         { label: "Frequently", value: "frequent", co2: 1.5, comparison: "Average shopping" },
         { label: "Occasionally", value: "occasional", co2: 0.8, comparison: "Mindful buying!" },
-        { label: "Rarely", value: "rare", co2: 0.3, comparison: "Minimalist! 👕", isGood: true },
-        { label: "Secondhand only", value: "secondhand", co2: 0.1, comparison: "Circular economy! ♻️", isGood: true },
+        { label: "Rarely", value: "rare", co2: 0.3, comparison: "Minimalist!", comparisonIcon: "checkroom", isGood: true },
+        { label: "Secondhand only", value: "secondhand", co2: 0.1, comparison: "Circular economy!", comparisonIcon: "recycling", isGood: true },
       ],
     },
     {
@@ -307,8 +411,8 @@ const CO2Calculator = ({ onQuizStateChange }) => {
       options: [
         { label: "Every year", value: "yearly", co2: 0.8, comparison: "Frequent upgrades", isGood: false },
         { label: "Every 2-3 years", value: "occasional", co2: 0.3, comparison: "Average cycle" },
-        { label: "Every 4+ years", value: "rare", co2: 0.1, comparison: "Long-lasting! 📱", isGood: true },
-        { label: "Until broken", value: "minimal", co2: 0.05, comparison: "Repair culture! 🔧", isGood: true },
+        { label: "Every 4+ years", value: "rare", co2: 0.1, comparison: "Long-lasting!", comparisonIcon: "phone-android", isGood: true },
+        { label: "Until broken", value: "minimal", co2: 0.05, comparison: "Repair culture!", comparisonIcon: "build", isGood: true },
       ],
     },
     // Water questions
@@ -322,8 +426,8 @@ const CO2Calculator = ({ onQuizStateChange }) => {
       options: [
         { label: "Long showers", value: "high", co2: 0.4, comparison: "High water use" },
         { label: "Average use", value: "medium", co2: 0.2, comparison: "Typical usage" },
-        { label: "Conservative", value: "low", co2: 0.1, comparison: "Water saver! 💧", isGood: true },
-        { label: "Very minimal", value: "minimal", co2: 0.05, comparison: "Excellent! 🚿", isGood: true },
+        { label: "Conservative", value: "low", co2: 0.1, comparison: "Water saver!", comparisonIcon: "water-drop", isGood: true },
+        { label: "Very minimal", value: "minimal", co2: 0.05, comparison: "Excellent!", comparisonIcon: "shower", isGood: true },
       ],
     },
   ];
@@ -333,11 +437,22 @@ const CO2Calculator = ({ onQuizStateChange }) => {
     if (option.comparison) return option.comparison;
     
     // Generate dynamic comparisons based on CO2 impact
-    if (co2Impact === 0) return "Zero emissions! Perfect! 🌟";
-    if (co2Impact < 0.5) return "Very low impact! 🌱";
+    if (co2Impact === 0) return "Zero emissions! Perfect!";
+    if (co2Impact < 0.5) return "Very low impact!";
     if (co2Impact < 2) return "Moderate impact";
     if (co2Impact < 5) return "Consider alternatives";
     return "High impact - room for improvement";
+  };
+
+  const getComparisonIcon = (option, co2Impact) => {
+    if (option.comparisonIcon) return option.comparisonIcon;
+    
+    // Generate dynamic icons based on CO2 impact
+    if (co2Impact === 0) return "stars";
+    if (co2Impact < 0.5) return "eco";
+    if (co2Impact < 2) return "info";
+    if (co2Impact < 5) return "warning";
+    return "error";
   };
 
   const handleAnswer = (option) => {
@@ -358,7 +473,9 @@ const CO2Calculator = ({ onQuizStateChange }) => {
 
     // Show comparison and celebrate good choices
     const comparison = getComparison(option, co2Impact);
+    const comparisonIcon = option.comparisonIcon || getComparisonIcon(option, co2Impact);
     setCurrentComparison(comparison);
+    setCurrentComparisonIcon(comparisonIcon);
     setShowComparison(true);
     
     if (option.isGood) {
@@ -369,7 +486,7 @@ const CO2Calculator = ({ onQuizStateChange }) => {
     // Store answer immediately
     const newAnswers = {
       ...answers,
-      [question.id]: { ...option, co2Impact, comparison },
+      [question.id]: { ...option, co2Impact, comparison, comparisonIcon },
     };
     setAnswers(newAnswers);
     const newTotal = totalCO2 + co2Impact;
@@ -550,7 +667,7 @@ const CO2Calculator = ({ onQuizStateChange }) => {
             <View style={styles.resultsHeaderCompact}>
             <View style={styles.headerContent}>
               <View style={styles.headerIcon}>
-                <MaterialIcons name="eco" size={28} color="#6366F1" />
+                <Icon name="eco" size={28} color="#6366F1" />
               </View>
               <View style={styles.headerTextContainer}>
                 <Text style={styles.headerTitle}>Your Results</Text>
@@ -563,7 +680,7 @@ const CO2Calculator = ({ onQuizStateChange }) => {
             <View style={[styles.scoreCard, { borderLeftColor: result.color }]}>
             <View style={styles.scoreHeader}>
               <View style={[styles.scoreIconContainer, { backgroundColor: result.color + '15' }]}>
-                <MaterialIcons name={result.icon} size={32} color={result.color} />
+                <Icon name={result.icon} size={32} color={result.color} />
               </View>
               <View style={styles.scoreTextContainer}>
                 <Text style={styles.scoreLabel}>Your Impact Level</Text>
@@ -575,27 +692,18 @@ const CO2Calculator = ({ onQuizStateChange }) => {
             {/* Stats Grid */}
             <View style={styles.statsGrid}>
             <Animatable.View animation="fadeInUp" delay={100} style={styles.statCard}>
-              <View style={styles.statIconContainer}>
-                <MaterialIcons name="today" size={24} color="#6366F1" />
-              </View>
               <Text style={styles.statLabel}>Daily</Text>
               <Text style={styles.statValue}>{totalCO2.toFixed(2)}</Text>
               <Text style={styles.statUnit}>kg CO₂</Text>
             </Animatable.View>
 
             <Animatable.View animation="fadeInUp" delay={200} style={styles.statCard}>
-              <View style={styles.statIconContainer}>
-                <MaterialIcons name="calendar-today" size={24} color="#8B5CF6" />
-              </View>
               <Text style={styles.statLabel}>Yearly</Text>
               <Text style={styles.statValue}>{yearlyTons}</Text>
               <Text style={styles.statUnit}>tons CO₂</Text>
             </Animatable.View>
 
             <Animatable.View animation="fadeInUp" delay={300} style={styles.statCard}>
-              <View style={styles.statIconContainer}>
-                <MaterialIcons name="park" size={24} color="#10B981" />
-              </View>
               <Text style={styles.statLabel}>Trees Needed</Text>
               <Text style={styles.statValue}>{treesNeeded}</Text>
               <Text style={styles.statUnit}>trees/year</Text>
@@ -605,14 +713,9 @@ const CO2Calculator = ({ onQuizStateChange }) => {
             {/* Comparison with Global Average */}
             <Animatable.View animation="fadeInUp" delay={400} style={styles.comparisonSection}>
             <View style={styles.comparisonHeader}>
-              <MaterialIcons 
-                name={betterThanAverage ? "trending-down" : "trending-up"} 
-                size={28} 
-                color={betterThanAverage ? "#10B981" : "#F59E0B"} 
-              />
               <View style={styles.comparisonTextContainer}>
-                <Text style={styles.comparisonTitle}>
-                  {betterThanAverage ? "Below Average! 🎉" : "Room for Improvement"}
+                <Text style={[styles.comparisonTitle, { color: betterThanAverage ? "#10B981" : "#F59E0B" }]}>
+                  {betterThanAverage ? "Below Average!" : "Room for Improvement"}
                 </Text>
                 <Text style={styles.comparisonSubtitle}>
                   You're {Math.abs(percentVsAverage)}% {betterThanAverage ? "better" : "higher"} than global average ({avgGlobal} kg/day)
@@ -642,28 +745,23 @@ const CO2Calculator = ({ onQuizStateChange }) => {
             <Animatable.View animation="fadeInUp" delay={500} style={styles.equivalentsSection}>
             <View style={styles.sectionHeaderRow}>
               <Text style={styles.breakdownTitle}>Real-World Impact</Text>
-              <MaterialIcons name="compare-arrows" size={20} color="#6366F1" />
             </View>
             <View style={styles.equivalentCard}>
-              <MaterialIcons name="local-gas-station" size={24} color="#EF4444" />
               <Text style={styles.equivalentText}>
                 = {(totalCO2 * 365 / 2.3).toFixed(0)} liters of gasoline/year
               </Text>
             </View>
             <View style={styles.equivalentCard}>
-              <MaterialIcons name="phone-android" size={24} color="#3B82F6" />
               <Text style={styles.equivalentText}>
                 = Charging {(totalCO2 * 2000).toFixed(0)} smartphones daily
               </Text>
             </View>
             <View style={styles.equivalentCard}>
-              <MaterialIcons name="flight" size={24} color="#8B5CF6" />
               <Text style={styles.equivalentText}>
                 = {(yearlyTons / 0.9).toFixed(1)} round-trip flights (short-haul)
               </Text>
             </View>
             <View style={styles.equivalentCard}>
-              <MaterialIcons name="home" size={24} color="#F59E0B" />
               <Text style={styles.equivalentText}>
                 = {(totalCO2 * 365 / 365).toFixed(0)} days of average home energy
               </Text>
@@ -674,7 +772,6 @@ const CO2Calculator = ({ onQuizStateChange }) => {
             <Animatable.View animation="fadeInUp" delay={600} style={styles.breakdownSection}>
               <View style={styles.sectionHeaderRow}>
                 <Text style={styles.breakdownTitle}>Breakdown by Category</Text>
-                <MaterialIcons name="pie-chart" size={20} color="#6366F1" />
               </View>
 
               {/* Category Filter Chips */}
@@ -729,13 +826,13 @@ const CO2Calculator = ({ onQuizStateChange }) => {
                   <View key={key} style={styles.breakdownItem}>
                     <View style={styles.breakdownLeft}>
                       <View style={[styles.breakdownIcon, { backgroundColor: question.color + '15' }]}>
-                        <MaterialIcons name={question.icon} size={18} color={question.color} />
+                        <Icon name={question.icon} size={18} color={question.color} />
                       </View>
                       <View style={styles.breakdownTextContainer}>
                         <Text style={styles.breakdownCategory}>{question.category}</Text>
                         <Text style={styles.breakdownAnswer}>{answer.label}</Text>
                         {answer.comparison && (
-                          <Text style={styles.breakdownComparison}>💡 {answer.comparison}</Text>
+                          <Text style={styles.breakdownComparison}>{answer.comparison}</Text>
                         )}
                       </View>
                     </View>
@@ -752,38 +849,25 @@ const CO2Calculator = ({ onQuizStateChange }) => {
             <Animatable.View animation="fadeInUp" delay={700} style={styles.tipsSection}>
               <View style={styles.sectionHeaderRow}>
                 <Text style={styles.tipsTitle}>Tips to Reduce</Text>
-                <MaterialIcons name="lightbulb" size={20} color="#F59E0B" />
               </View>
               <View style={styles.tipCard}>
-                <View style={styles.tipIconContainer}>
-                  <MaterialIcons name="directions-bike" size={20} color="#10B981" />
-                </View>
-                <Text style={styles.tipText}>Use public transport or bike for short trips</Text>
+                <Text style={styles.tipText}> Use public transport or bike for short trips</Text>
               </View>
               <View style={styles.tipCard}>
-                <View style={styles.tipIconContainer}>
-                  <MaterialIcons name="restaurant" size={20} color="#10B981" />
-                </View>
-                <Text style={styles.tipText}>Reduce meat consumption, try plant-based meals</Text>
+                <Text style={styles.tipText}> Reduce meat consumption, try plant-based meals</Text>
               </View>
               <View style={styles.tipCard}>
-                <View style={styles.tipIconContainer}>
-                  <MaterialIcons name="recycling" size={20} color="#10B981" />
-                </View>
-                <Text style={styles.tipText}>Recycle and compost your waste</Text>
+                <Text style={styles.tipText}> Recycle and compost your waste</Text>
               </View>
               <View style={styles.tipCard}>
-                <View style={styles.tipIconContainer}>
-                  <MaterialIcons name="bolt" size={20} color="#10B981" />
-                </View>
-                <Text style={styles.tipText}>Switch to renewable energy sources</Text>
+                <Text style={styles.tipText}> Switch to renewable energy sources</Text>
               </View>
             </Animatable.View>
 
             {/* Action Buttons */}
             <Animatable.View animation="fadeInUp" delay={800} style={styles.actionButtons}>
               <Pressable style={styles.retakeButton} onPress={resetQuiz}>
-                <MaterialIcons name="arrow-back" size={22} color="#fff" />
+                <Icon name="arrow-back" size={22} color="#fff" />
                 <Text style={styles.retakeButtonText}>Back to Dashboard</Text>
               </Pressable>
             </Animatable.View>
@@ -799,7 +883,7 @@ const CO2Calculator = ({ onQuizStateChange }) => {
   if (loading || selectedQuestions.length === 0) {
     return (
       <View style={styles.loadingContainer}>
-        <MaterialIcons name="eco" size={48} color="#6366F1" />
+        <Icon name="eco" size={48} color="#6366F1" />
         <Text style={styles.loadingText}>
           {loading ? "Loading questions..." : "Preparing your quiz..."}
         </Text>
@@ -824,14 +908,7 @@ const CO2Calculator = ({ onQuizStateChange }) => {
             duration={800}
             style={styles.celebrationOverlay}
           >
-            <Animatable.Text 
-              animation="pulse" 
-              iterationCount={3}
-              duration={500}
-              style={styles.celebrationEmoji}
-            >
-              🎉
-            </Animatable.Text>
+            <Icon name="celebration" size={48} color="#10B981" />
             <Text style={styles.celebrationText}>Great Choice!</Text>
           </Animatable.View>
         </View>
@@ -844,7 +921,7 @@ const CO2Calculator = ({ onQuizStateChange }) => {
         {!showComparison ? (
           <View style={styles.headerContent}>
             <View style={styles.headerIcon}>
-              <MaterialIcons name="eco" size={28} color="#6366F1" />
+              <Icon name="eco" size={28} color="#6366F1" />
             </View>
             <View style={styles.headerTextContainer}>
               <Text style={styles.headerTitle}>CO₂ Calculator</Text>
@@ -856,7 +933,7 @@ const CO2Calculator = ({ onQuizStateChange }) => {
             animation="fadeIn" 
             style={styles.headerComparisonCard}
           >
-            <MaterialIcons name="info" size={24} color="#6366F1" />
+            <Icon name={currentComparisonIcon} size={24} color="#6366F1" />
             <Text style={styles.headerComparisonText}>{currentComparison}</Text>
           </Animatable.View>
         )}
@@ -870,7 +947,7 @@ const CO2Calculator = ({ onQuizStateChange }) => {
       {/* Question Card */}
       <Animated.View style={[styles.questionCard, { opacity: fadeAnim }]}>
         <View style={[styles.categoryBadge, { backgroundColor: question.color + '15' }]}>
-          <MaterialIcons name={question.icon} size={20} color={question.color} />
+          <Icon name={question.icon} size={20} color={question.color} />
           <Text style={[styles.categoryText, { color: question.color }]}>{question.category}</Text>
         </View>
 
@@ -879,7 +956,7 @@ const CO2Calculator = ({ onQuizStateChange }) => {
         {/* Fun Fact */}
         {question.funFact && (
           <View style={styles.funFactCard}>
-            <MaterialIcons name="lightbulb" size={16} color="#F59E0B" />
+            <Icon name="lightbulb" size={16} color="#F59E0B" />
             <Text style={styles.funFactText}>{question.funFact}</Text>
           </View>
         )}
@@ -900,13 +977,13 @@ const CO2Calculator = ({ onQuizStateChange }) => {
               <View style={styles.optionRight}>
                 {!question.dependsOn && (
                   <View style={styles.co2Badge}>
-                    <MaterialIcons name="cloud" size={14} color="#6366F1" />
+                    <Icon name="cloud" size={14} color="#6366F1" />
                     <Text style={styles.co2Text}>
                       {option.co2 === 0 ? "0" : option.co2.toFixed(2)}
                     </Text>
                   </View>
                 )}
-                <MaterialIcons name="chevron-right" size={20} color="#CBD5E1" />
+                <Icon name="chevron-right" size={20} color="#CBD5E1" />
               </View>
             </Pressable>
           ))}
@@ -920,7 +997,7 @@ const CO2Calculator = ({ onQuizStateChange }) => {
           style={styles.currentTotal}
         >
           <View style={styles.totalIcon}>
-            <MaterialIcons name="eco" size={18} color="#10B981" />
+            <Icon name="eco" size={18} color="#10B981" />
           </View>
           <Text style={styles.currentTotalLabel}>Current total:</Text>
           <Text style={styles.currentTotalValue}>{totalCO2.toFixed(2)} kg CO₂/day</Text>
@@ -1437,6 +1514,12 @@ const styles = StyleSheet.create({
     marginTop: 3,
     fontStyle: "italic",
   },
+  breakdownComparisonRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 3,
+  },
   breakdownRight: {
     alignItems: "flex-end",
   },
@@ -1601,3 +1684,4 @@ const styles = StyleSheet.create({
 });
 
 export default CO2Calculator;
+
