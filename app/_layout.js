@@ -17,10 +17,7 @@ export default function Layout() {
         name="Dashboard/Homepage"
         options={{ headerShown: false }}
       />
-      <Stack.Screen
-        name="Screens/Settings"
-        options={{ headerShown: false }}
-      />
+      <Stack.Screen name="Screens/Settings" options={{ headerShown: false }} />
       <Stack.Screen
         name="Screens/PrivacySecurity"
         options={{ headerShown: false }}
@@ -39,6 +36,10 @@ export default function Layout() {
       />
       <Stack.Screen
         name="Screens/CO2Calculator"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="Screens/Leaderboard"
         options={{ headerShown: false }}
       />
 
