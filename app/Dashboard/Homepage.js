@@ -1,17 +1,19 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Image,
+  PanResponder,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 import * as Animatable from "react-native-animatable";
 import { BASE_URL } from "../../constants/config";
@@ -28,10 +30,60 @@ const Homepage = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [posts, setPosts] = useState([]);
-  const [activeTab, setActiveTab] = useState('home');
+  const [activeTab, setActiveTab] = useState("home");
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [showWelcomeBanner, setShowWelcomeBanner] = useState(false);
   const [isFirstTimeUser, setIsFirstTimeUser] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const slideAnim = useRef(new Animated.Value(-280)).current;
+
+  // Pan responder for swipe gestures
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => showMenu,
+      onMoveShouldSetPanResponder: (evt, gestureState) => {
+        // Only respond when menu is open and swiping left
+        return showMenu && gestureState.dx < -10;
+      },
+      onPanResponderMove: (evt, gestureState) => {
+        if (showMenu && gestureState.dx < 0) {
+          // Closing: swipe left when menu is open
+          const newValue = Math.max(-280, gestureState.dx);
+          slideAnim.setValue(newValue);
+        }
+      },
+      onPanResponderRelease: (evt, gestureState) => {
+        if (showMenu && gestureState.dx < -100) {
+          // Close menu if swiped left more than 100px
+          closeMenu();
+        } else if (showMenu) {
+          // Snap back to open state
+          Animated.spring(slideAnim, {
+            toValue: 0,
+            useNativeDriver: true,
+          }).start();
+        }
+      },
+    }),
+  ).current;
+
+  const openMenu = () => {
+    setShowMenu(true);
+    Animated.spring(slideAnim, {
+      toValue: 0,
+      tension: 50,
+      friction: 8,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  const closeMenu = () => {
+    Animated.timing(slideAnim, {
+      toValue: -280,
+      duration: 250,
+      useNativeDriver: true,
+    }).start(() => setShowMenu(false));
+  };
 
   useEffect(() => {
     loadUserData();
@@ -50,7 +102,7 @@ const Homepage = () => {
         // Returning user
         setIsFirstTimeUser(false);
       }
-      
+
       // Show banner for 2 seconds
       setShowWelcomeBanner(true);
       setTimeout(() => {
@@ -72,7 +124,9 @@ const Homepage = () => {
       }
 
       // Use the new endpoint that works with both mobile and email
-      const response = await fetch(`${BASE_URL}/user/by-identifier/${identifier}`);
+      const response = await fetch(
+        `${BASE_URL}/user/by-identifier/${identifier}`,
+      );
       const result = await response.json();
 
       if (response.ok && result.success) {
@@ -92,30 +146,30 @@ const Homepage = () => {
   const loadPosts = async () => {
     try {
       const mobile = await AsyncStorage.getItem("mobile");
-      
+
       // Fetch posts from backend with userId to check liked status
       const response = await fetch(`${BASE_URL}/posts?userId=${mobile}`);
       const result = await response.json();
 
       if (response.ok && result.success) {
         // Transform backend posts to match frontend format
-        const transformedPosts = result.posts.map(post => {
+        const transformedPosts = result.posts.map((post) => {
           // Calculate time ago
           const timeAgo = getTimeAgo(post.createdAt);
-          
+
           return {
             id: post._id,
-            user: { 
-              name: post.userName, 
-              avatar: post.userProfilePicture 
+            user: {
+              name: post.userName,
+              avatar: post.userProfilePicture,
             },
             image: { uri: post.imageUrl },
             caption: post.caption,
             description: post.caption,
-            impact: { 
+            impact: {
               category: post.category,
               co2: post.co2Offset ? `${post.co2Offset} kg` : "0 kg",
-              ecoPoints: post.ecoPoints || 0
+              ecoPoints: post.ecoPoints || 0,
             },
             likes: post.likesCount,
             comments: post.commentsCount,
@@ -124,10 +178,10 @@ const Homepage = () => {
             categoryId: post.categoryId,
             mobile: post.mobile,
             email: post.email,
-            identifier: post.identifier
+            identifier: post.identifier,
           };
         });
-        
+
         setPosts(transformedPosts);
       }
     } catch (error) {
@@ -142,7 +196,7 @@ const Homepage = () => {
   // Helper function to calculate time ago
   const getTimeAgo = (timestamp) => {
     const seconds = Math.floor(Date.now() / 1000 - timestamp);
-    
+
     if (seconds < 60) return "Just now";
     if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
     if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
@@ -159,18 +213,18 @@ const Homepage = () => {
   const handleLike = async (postId) => {
     try {
       const identifier = await AsyncStorage.getItem("mobile");
-      
+
       const formData = new FormData();
-      
+
       // Check if identifier is email or mobile
-      if (identifier.includes('@')) {
-        formData.append('email', identifier);
+      if (identifier.includes("@")) {
+        formData.append("email", identifier);
       } else {
-        formData.append('mobile', identifier);
+        formData.append("mobile", identifier);
       }
 
       const response = await fetch(`${BASE_URL}/posts/${postId}/like`, {
-        method: 'POST',
+        method: "POST",
         body: formData,
       });
 
@@ -178,64 +232,63 @@ const Homepage = () => {
 
       if (response.ok && result.success) {
         // Update local state
-        setPosts(posts.map(post => 
-          post.id === postId 
-            ? { ...post, liked: result.liked, likes: result.likesCount }
-            : post
-        ));
+        setPosts(
+          posts.map((post) =>
+            post.id === postId
+              ? { ...post, liked: result.liked, likes: result.likesCount }
+              : post,
+          ),
+        );
       }
     } catch (error) {
-      console.error('Error liking post:', error);
-      Alert.alert('Error', 'Failed to like post');
+      console.error("Error liking post:", error);
+      Alert.alert("Error", "Failed to like post");
     }
   };
 
   const handleDeletePost = (postId, postOwner) => {
-    Alert.alert(
-      "Delete Post",
-      "Are you sure you want to delete this post?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const identifier = await AsyncStorage.getItem("mobile");
-              
-              // Check if user owns this post
-              if (identifier !== postOwner) {
-                Alert.alert("Error", "You can only delete your own posts");
-                return;
-              }
+    Alert.alert("Delete Post", "Are you sure you want to delete this post?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            const identifier = await AsyncStorage.getItem("mobile");
 
-              // Check if identifier is email or mobile
-              const paramName = identifier.includes('@') ? 'email' : 'mobile';
-
-              const response = await fetch(`${BASE_URL}/posts/${postId}?${paramName}=${identifier}`, {
-                method: "DELETE",
-              });
-
-              const result = await response.json();
-
-              if (response.ok && result.success) {
-                Alert.alert("Success", "Post deleted successfully!");
-                // Remove post from local state
-                setPosts(posts.filter(post => post.id !== postId));
-              } else {
-                Alert.alert("Error", result.detail || "Failed to delete post");
-              }
-            } catch (error) {
-              console.error("Error deleting post:", error);
-              Alert.alert("Error", "Failed to delete post");
+            // Check if user owns this post
+            if (identifier !== postOwner) {
+              Alert.alert("Error", "You can only delete your own posts");
+              return;
             }
-          },
+
+            // Check if identifier is email or mobile
+            const paramName = identifier.includes("@") ? "email" : "mobile";
+
+            const response = await fetch(
+              `${BASE_URL}/posts/${postId}?${paramName}=${identifier}`,
+              {
+                method: "DELETE",
+              },
+            );
+
+            const result = await response.json();
+
+            if (response.ok && result.success) {
+              Alert.alert("Success", "Post deleted successfully!");
+              // Remove post from local state
+              setPosts(posts.filter((post) => post.id !== postId));
+            } else {
+              Alert.alert("Error", result.detail || "Failed to delete post");
+            }
+          } catch (error) {
+            console.error("Error deleting post:", error);
+            Alert.alert("Error", "Failed to delete post");
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
-
-
 
   if (loading) {
     return (
@@ -248,15 +301,15 @@ const Homepage = () => {
 
   // Render content based on active tab
   const renderContent = () => {
-    if (activeTab === 'profile') {
+    if (activeTab === "profile") {
       return <Profile userData={userData} onRefresh={loadUserData} />;
     }
 
-    if (activeTab === 'calculator') {
+    if (activeTab === "calculator") {
       return <CO2CalculatorLanding />;
     }
 
-    if (activeTab === 'explore') {
+    if (activeTab === "explore") {
       return <ExploreMap />;
     }
 
@@ -271,17 +324,16 @@ const Homepage = () => {
       >
         {/* Welcome Banner - Show on every login with different message */}
         {showWelcomeBanner && userData && (
-          <Animatable.View 
-            animation="fadeInDown" 
+          <Animatable.View
+            animation="fadeInDown"
             duration={600}
             style={styles.welcomeBanner}
           >
             <View style={styles.bannerContent}>
               <Text style={styles.bannerTitle}>
-                {isFirstTimeUser 
+                {isFirstTimeUser
                   ? `Welcome, ${userData.firstName}! 👋`
-                  : `Welcome back, ${userData.firstName}! 👋`
-                }
+                  : `Welcome back, ${userData.firstName}! 👋`}
               </Text>
               <Text style={styles.bannerSubtitle}>
                 Discover eco-actions from your community
@@ -311,17 +363,25 @@ const Homepage = () => {
 
               {/* Image with Overlay */}
               <View style={styles.imageContainer}>
-                <Image source={post.image} style={styles.cardImage} resizeMode="cover" />
+                <Image
+                  source={post.image}
+                  style={styles.cardImage}
+                  resizeMode="cover"
+                />
                 <View style={styles.imageOverlay}>
                   <Pressable
                     style={styles.userBadge}
                     onPress={() => {
-                      const currentUserIdentifier = userData?.mobile || userData?.email;
-                      const postOwnerIdentifier = post.identifier || post.mobile || post.email;
-                      
+                      const currentUserIdentifier =
+                        userData?.mobile || userData?.email;
+                      const postOwnerIdentifier =
+                        post.identifier || post.mobile || post.email;
+
                       if (currentUserIdentifier !== postOwnerIdentifier) {
                         // Navigate to other user's profile
-                        router.push(`/Screens/UserProfile?mobile=${encodeURIComponent(postOwnerIdentifier)}`);
+                        router.push(
+                          `/Screens/UserProfile?mobile=${encodeURIComponent(postOwnerIdentifier)}`,
+                        );
                       }
                     }}
                   >
@@ -331,21 +391,30 @@ const Homepage = () => {
                     <Text style={styles.overlayUserName}>
                       {(() => {
                         // Get current user's identifier
-                        const currentUserIdentifier = userData?.mobile || userData?.email;
+                        const currentUserIdentifier =
+                          userData?.mobile || userData?.email;
                         // Get post owner's identifier
-                        const postOwnerIdentifier = post.identifier || post.mobile || post.email;
+                        const postOwnerIdentifier =
+                          post.identifier || post.mobile || post.email;
                         // Check if current user is the post owner
-                        const isOwnPost = currentUserIdentifier === postOwnerIdentifier;
-                        
+                        const isOwnPost =
+                          currentUserIdentifier === postOwnerIdentifier;
+
                         return isOwnPost ? post.user.name : "Anonymous User";
                       })()}
                     </Text>
                     {(() => {
-                      const currentUserIdentifier = userData?.mobile || userData?.email;
-                      const postOwnerIdentifier = post.identifier || post.mobile || post.email;
+                      const currentUserIdentifier =
+                        userData?.mobile || userData?.email;
+                      const postOwnerIdentifier =
+                        post.identifier || post.mobile || post.email;
                       return currentUserIdentifier !== postOwnerIdentifier;
                     })() && (
-                      <MaterialIcons name="chevron-right" size={16} color="#fff" />
+                      <MaterialIcons
+                        name="chevron-right"
+                        size={16}
+                        color="#fff"
+                      />
                     )}
                   </Pressable>
                 </View>
@@ -353,13 +422,20 @@ const Homepage = () => {
 
               {/* Delete button - only show for user's own posts */}
               {(() => {
-                const currentUserIdentifier = userData?.mobile || userData?.email;
-                const postOwnerIdentifier = post.identifier || post.mobile || post.email;
+                const currentUserIdentifier =
+                  userData?.mobile || userData?.email;
+                const postOwnerIdentifier =
+                  post.identifier || post.mobile || post.email;
                 return currentUserIdentifier === postOwnerIdentifier;
               })() && (
                 <Pressable
                   style={styles.deletePostButton}
-                  onPress={() => handleDeletePost(post.id, post.identifier || post.mobile || post.email)}
+                  onPress={() =>
+                    handleDeletePost(
+                      post.id,
+                      post.identifier || post.mobile || post.email,
+                    )
+                  }
                 >
                   <MaterialIcons name="delete" size={20} color="#fff" />
                 </Pressable>
@@ -381,12 +457,18 @@ const Homepage = () => {
                   {post.impact.trees && (
                     <View style={styles.impactBadge}>
                       <MaterialIcons name="park" size={18} color="#10B981" />
-                      <Text style={styles.impactText}>{post.impact.trees} trees</Text>
+                      <Text style={styles.impactText}>
+                        {post.impact.trees} trees
+                      </Text>
                     </View>
                   )}
                   {post.impact.waste && (
                     <View style={styles.impactBadge}>
-                      <MaterialIcons name="delete-outline" size={18} color="#F59E0B" />
+                      <MaterialIcons
+                        name="delete-outline"
+                        size={18}
+                        color="#F59E0B"
+                      />
                       <Text style={styles.impactText}>{post.impact.waste}</Text>
                     </View>
                   )}
@@ -394,22 +476,31 @@ const Homepage = () => {
 
                 {/* Actions Row */}
                 <View style={styles.cardActions}>
-                  <Pressable 
+                  <Pressable
                     style={styles.cardActionButton}
                     onPress={() => handleLike(post.id)}
                   >
-                    <MaterialIcons 
-                      name={post.liked ? "favorite" : "favorite-border"} 
-                      size={22} 
-                      color={post.liked ? "#F43F5E" : "#64748B"} 
+                    <MaterialIcons
+                      name={post.liked ? "favorite" : "favorite-border"}
+                      size={22}
+                      color={post.liked ? "#F43F5E" : "#64748B"}
                     />
-                    <Text style={[styles.actionText, post.liked && styles.actionTextLiked]}>
+                    <Text
+                      style={[
+                        styles.actionText,
+                        post.liked && styles.actionTextLiked,
+                      ]}
+                    >
                       {post.likes}
                     </Text>
                   </Pressable>
 
                   <Pressable style={styles.cardActionButton}>
-                    <MaterialIcons name="chat-bubble-outline" size={20} color="#64748B" />
+                    <MaterialIcons
+                      name="chat-bubble-outline"
+                      size={20}
+                      color="#64748B"
+                    />
                     <Text style={styles.actionText}>{post.comments}</Text>
                   </Pressable>
 
@@ -418,7 +509,11 @@ const Homepage = () => {
                   </Pressable>
 
                   <View style={styles.timeContainer}>
-                    <MaterialIcons name="access-time" size={14} color="#94A3B8" />
+                    <MaterialIcons
+                      name="access-time"
+                      size={14}
+                      color="#94A3B8"
+                    />
                     <Text style={styles.timeText}>{post.timeAgo}</Text>
                   </View>
                 </View>
@@ -443,59 +538,85 @@ const Homepage = () => {
   return (
     <View style={styles.container}>
       {/* Header - Only show on home tab */}
-      {activeTab === 'home' && (
+      {activeTab === "home" && (
         <View style={styles.header}>
+          <Pressable style={styles.menuButton} onPress={openMenu}>
+            <MaterialIcons name="menu" size={26} color="#111827" />
+          </Pressable>
           <Text style={styles.headerTitle}>SafaStep</Text>
           <View style={styles.headerIcons}>
             <Pressable style={styles.headerIcon}>
-              <MaterialIcons name="notifications-none" size={26} color="#111827" />
+              <MaterialIcons
+                name="notifications-none"
+                size={26}
+                color="#111827"
+              />
             </Pressable>
           </View>
         </View>
       )}
 
       {/* Content - Don't wrap calculator in extra view */}
-      {activeTab === 'calculator' ? (
-        <CO2CalculatorLanding />
-      ) : (
-        renderContent()
-      )}
+      {activeTab === "calculator" ? <CO2CalculatorLanding /> : renderContent()}
 
       {/* Bottom Navigation */}
       <View style={styles.bottomNav}>
-        <Pressable 
-          style={[styles.navItem, activeTab === 'home' && styles.navItemActive]}
-          onPress={() => setActiveTab('home')}
+        <Pressable
+          style={[styles.navItem, activeTab === "home" && styles.navItemActive]}
+          onPress={() => setActiveTab("home")}
         >
-          <View style={[styles.navIconContainer, activeTab === 'home' && styles.navIconContainerActive]}>
-            <MaterialIcons 
-              name="home" 
-              size={26} 
-              color={activeTab === 'home' ? "#6366F1" : "#94A3B8"} 
+          <View
+            style={[
+              styles.navIconContainer,
+              activeTab === "home" && styles.navIconContainerActive,
+            ]}
+          >
+            <MaterialIcons
+              name="home"
+              size={26}
+              color={activeTab === "home" ? "#6366F1" : "#94A3B8"}
             />
           </View>
-          <Text style={[styles.navText, activeTab === 'home' && styles.navTextActive]}>
+          <Text
+            style={[
+              styles.navText,
+              activeTab === "home" && styles.navTextActive,
+            ]}
+          >
             Home
           </Text>
         </Pressable>
 
-        <Pressable 
-          style={[styles.navItem, activeTab === 'explore' && styles.navItemActive]}
-          onPress={() => setActiveTab('explore')}
+        <Pressable
+          style={[
+            styles.navItem,
+            activeTab === "explore" && styles.navItemActive,
+          ]}
+          onPress={() => setActiveTab("explore")}
         >
-          <View style={[styles.navIconContainer, activeTab === 'explore' && styles.navIconContainerActive]}>
-            <MaterialIcons 
-              name="campaign" 
-              size={26} 
-              color={activeTab === 'explore' ? "#6366F1" : "#94A3B8"} 
+          <View
+            style={[
+              styles.navIconContainer,
+              activeTab === "explore" && styles.navIconContainerActive,
+            ]}
+          >
+            <MaterialIcons
+              name="campaign"
+              size={26}
+              color={activeTab === "explore" ? "#6366F1" : "#94A3B8"}
             />
           </View>
-          <Text style={[styles.navText, activeTab === 'explore' && styles.navTextActive]}>
+          <Text
+            style={[
+              styles.navText,
+              activeTab === "explore" && styles.navTextActive,
+            ]}
+          >
             Explore
           </Text>
         </Pressable>
 
-        <Pressable 
+        <Pressable
           style={styles.navItem}
           onPress={() => setShowCreatePost(true)}
         >
@@ -505,34 +626,60 @@ const Homepage = () => {
           <Text style={[styles.navText, { marginTop: 2 }]}>Post</Text>
         </Pressable>
 
-        <Pressable 
-          style={[styles.navItem, activeTab === 'calculator' && styles.navItemActive]}
-          onPress={() => setActiveTab('calculator')}
+        <Pressable
+          style={[
+            styles.navItem,
+            activeTab === "calculator" && styles.navItemActive,
+          ]}
+          onPress={() => setActiveTab("calculator")}
         >
-          <View style={[styles.navIconContainer, activeTab === 'calculator' && styles.navIconContainerActive]}>
-            <MaterialIcons 
-              name="eco" 
-              size={26} 
-              color={activeTab === 'calculator' ? "#6366F1" : "#94A3B8"} 
+          <View
+            style={[
+              styles.navIconContainer,
+              activeTab === "calculator" && styles.navIconContainerActive,
+            ]}
+          >
+            <MaterialIcons
+              name="eco"
+              size={26}
+              color={activeTab === "calculator" ? "#6366F1" : "#94A3B8"}
             />
           </View>
-          <Text style={[styles.navText, activeTab === 'calculator' && styles.navTextActive]}>
+          <Text
+            style={[
+              styles.navText,
+              activeTab === "calculator" && styles.navTextActive,
+            ]}
+          >
             CO₂ Calc
           </Text>
         </Pressable>
 
-        <Pressable 
-          style={[styles.navItem, activeTab === 'profile' && styles.navItemActive]}
-          onPress={() => setActiveTab('profile')}
+        <Pressable
+          style={[
+            styles.navItem,
+            activeTab === "profile" && styles.navItemActive,
+          ]}
+          onPress={() => setActiveTab("profile")}
         >
-          <View style={[styles.navIconContainer, activeTab === 'profile' && styles.navIconContainerActive]}>
-            <MaterialIcons 
-              name={activeTab === 'profile' ? "person" : "person-outline"} 
-              size={26} 
-              color={activeTab === 'profile' ? "#6366F1" : "#94A3B8"} 
+          <View
+            style={[
+              styles.navIconContainer,
+              activeTab === "profile" && styles.navIconContainerActive,
+            ]}
+          >
+            <MaterialIcons
+              name={activeTab === "profile" ? "person" : "person-outline"}
+              size={26}
+              color={activeTab === "profile" ? "#6366F1" : "#94A3B8"}
             />
           </View>
-          <Text style={[styles.navText, activeTab === 'profile' && styles.navTextActive]}>
+          <Text
+            style={[
+              styles.navText,
+              activeTab === "profile" && styles.navTextActive,
+            ]}
+          >
             Profile
           </Text>
         </Pressable>
@@ -544,6 +691,118 @@ const Homepage = () => {
         onClose={() => setShowCreatePost(false)}
         onPostCreated={loadPosts}
       />
+
+      {/* Edge Swipe Detector - for opening menu */}
+      {!showMenu && (
+        <View {...panResponder.panHandlers} style={styles.edgeSwipeDetector} />
+      )}
+
+      {/* Side Menu Overlay - only shows when menu is open */}
+      {showMenu && <Pressable style={styles.menuOverlay} onPress={closeMenu} />}
+
+      {/* Menu Container - Always rendered for swipe gesture */}
+      <Animated.View
+        style={[
+          styles.sideMenuContainer,
+          {
+            transform: [{ translateX: slideAnim }],
+          },
+        ]}
+        pointerEvents={showMenu ? "auto" : "none"}
+      >
+        <View style={styles.sideMenu}>
+          {/* Profile Section */}
+          <View style={styles.menuProfileSection}>
+            <View style={styles.menuAvatar}>
+              <MaterialIcons name="person" size={40} color="#6366F1" />
+            </View>
+            <Text style={styles.menuProfileName}>
+              {userData?.firstName} {userData?.lastName}
+            </Text>
+            <Pressable
+              onPress={() => {
+                setActiveTab("profile");
+                setTimeout(() => closeMenu(), 100);
+              }}
+            >
+              <Text style={styles.menuProfileLink}>View profile</Text>
+            </Pressable>
+          </View>
+
+          {/* Menu Items */}
+          <View style={styles.menuItems}>
+            <Pressable
+              style={styles.menuItem}
+              onPress={() => {
+                router.push("/Screens/Leaderboard");
+                setTimeout(() => closeMenu(), 100);
+              }}
+            >
+              <MaterialIcons name="leaderboard" size={24} color="#6b7280" />
+              <Text style={styles.menuItemText}>Leaderboard</Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.menuItem}
+              onPress={() => {
+                setActiveTab("calculator");
+                setTimeout(() => closeMenu(), 100);
+              }}
+            >
+              <MaterialIcons name="eco" size={24} color="#6b7280" />
+              <Text style={styles.menuItemText}>CO₂ Calculator</Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.menuItem}
+              onPress={() => {
+                setActiveTab("explore");
+                setTimeout(() => closeMenu(), 100);
+              }}
+            >
+              <MaterialIcons name="map" size={24} color="#6b7280" />
+              <Text style={styles.menuItemText}>Explore Map</Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.menuItem}
+              onPress={() => {
+                setTimeout(() => closeMenu(), 100);
+                // Add settings navigation
+              }}
+            >
+              <MaterialIcons name="settings" size={24} color="#6b7280" />
+              <Text style={styles.menuItemText}>Settings</Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.menuItem}
+              onPress={() => {
+                setTimeout(() => closeMenu(), 100);
+                // Add help navigation
+              }}
+            >
+              <MaterialIcons name="help-outline" size={24} color="#6b7280" />
+              <Text style={styles.menuItemText}>Help & FAQ</Text>
+            </Pressable>
+          </View>
+
+          {/* Logout Button */}
+          <View style={styles.menuFooter}>
+            <Pressable
+              style={styles.menuLogoutButton}
+              onPress={async () => {
+                await AsyncStorage.clear();
+                router.push("/Screens/Login");
+                setTimeout(() => closeMenu(), 100);
+              }}
+            >
+              <MaterialIcons name="logout" size={24} color="#6b7280" />
+              <Text style={styles.menuLogoutText}>Log out</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Animated.View>
     </View>
   );
 };
@@ -890,6 +1149,111 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 8,
     marginTop: -8,
+  },
+  menuButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#F0F4FF",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  menuOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 296,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "transparent",
+    zIndex: 1000,
+  },
+  menuOverlayTouchable: {
+    flex: 1,
+  },
+  sideMenuContainer: {
+    position: "absolute",
+    left: 16,
+    top: 16,
+    bottom: 16,
+    width: "65%",
+    maxWidth: 280,
+    overflow: "hidden",
+    borderRadius: 32,
+  },
+  sideMenu: {
+    flex: 1,
+    backgroundColor: "rgba(255, 255, 255, 0.98)",
+    borderRadius: 32,
+    borderWidth: 1,
+    borderColor: "rgba(226, 232, 240, 0.8)",
+    shadowColor: "#6366F1",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 24,
+    elevation: 10,
+    paddingVertical: 32,
+  },
+  menuProfileSection: {
+    alignItems: "center",
+    paddingHorizontal: 24,
+    paddingBottom: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(243, 244, 246, 0.5)",
+  },
+  menuAvatar: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "rgba(238, 242, 255, 0.8)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: "rgba(255, 255, 255, 0.5)",
+  },
+  menuProfileName: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 4,
+  },
+  menuProfileLink: {
+    fontSize: 14,
+    color: "#9ca3af",
+    fontWeight: "500",
+  },
+  menuItems: {
+    paddingTop: 16,
+    paddingHorizontal: 24,
+    flex: 1,
+  },
+  menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 16,
+    gap: 16,
+  },
+  menuItemText: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#4b5563",
+  },
+  menuFooter: {
+    paddingHorizontal: 24,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(243, 244, 246, 0.5)",
+  },
+  menuLogoutButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 16,
+    gap: 16,
+  },
+  menuLogoutText: {
+    fontSize: 16,
+    fontWeight: "500",
+    color: "#6b7280",
   },
 });
 
