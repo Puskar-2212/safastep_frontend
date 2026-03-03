@@ -1,19 +1,19 @@
-import { MaterialIcons } from "@expo/vector-icons";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Animated,
-  Image,
-  PanResponder,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
+    ActivityIndicator,
+    Alert,
+    Animated,
+    Image,
+    PanResponder,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
 } from "react-native";
 import * as Animatable from "react-native-animatable";
 import { BASE_URL } from "../../constants/config";
@@ -36,6 +36,7 @@ const Homepage = () => {
   const [isFirstTimeUser, setIsFirstTimeUser] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const slideAnim = useRef(new Animated.Value(-280)).current;
+  const [unreadCount, setUnreadCount] = useState(0);
 
   // Pan responder for swipe gestures
   const panResponder = useRef(
@@ -89,6 +90,15 @@ const Homepage = () => {
     loadUserData();
     loadPosts();
     checkIfFirstTime();
+    fetchUnreadCount();
+
+    // Auto-refresh notifications every 30 seconds
+    const notificationInterval = setInterval(() => {
+      fetchUnreadCount();
+    }, 30000); // 30 seconds
+
+    // Cleanup interval on unmount
+    return () => clearInterval(notificationInterval);
   }, []);
 
   const checkIfFirstTime = async () => {
@@ -204,10 +214,34 @@ const Homepage = () => {
     return `${Math.floor(seconds / 604800)} weeks ago`;
   };
 
+  const fetchUnreadCount = async () => {
+    try {
+      const identifier = await AsyncStorage.getItem("mobile");
+      if (!identifier) return;
+
+      const response = await fetch(
+        `${BASE_URL}/notifications/${identifier}/unread-count`,
+        {
+          headers: {
+            "ngrok-skip-browser-warning": "true",
+          },
+        },
+      );
+      const data = await response.json();
+
+      if (data.success) {
+        setUnreadCount(data.unreadCount);
+      }
+    } catch (error) {
+      console.error("Error fetching unread count:", error);
+    }
+  };
+
   const onRefresh = () => {
     setRefreshing(true);
     loadUserData();
     loadPosts();
+    fetchUnreadCount(); // Also refresh notification count
   };
 
   const handleLike = async (postId) => {
@@ -293,7 +327,7 @@ const Homepage = () => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#10B981" />
+        <ActivityIndicator size="large" color="#047857" />
         <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
@@ -355,12 +389,6 @@ const Homepage = () => {
               delay={index * 100}
               style={styles.ecoCard}
             >
-              {/* Category Badge */}
-              <View style={styles.categoryBadge}>
-                <MaterialIcons name="eco" size={16} color="#fff" />
-                <Text style={styles.categoryText}>{post.impact.category}</Text>
-              </View>
-
               {/* Image with Overlay */}
               <View style={styles.imageContainer}>
                 <Image
@@ -437,26 +465,80 @@ const Homepage = () => {
                     )
                   }
                 >
-                  <MaterialIcons name="delete" size={20} color="#fff" />
+                  <Ionicons name="trash-outline" size={24} color="#EF4444" />
                 </Pressable>
               )}
 
               {/* Card Content */}
               <View style={styles.cardContent}>
-                <Text style={styles.cardTitle}>{post.caption}</Text>
-                <Text style={styles.cardDescription} numberOfLines={2}>
-                  {post.description}
+                <Text style={styles.cardTitle} numberOfLines={2}>
+                  {post.caption}
                 </Text>
+
+                {/* Category Badge - below caption */}
+                <View style={styles.categoryBadge}>
+                  <MaterialIcons
+                    name={
+                      post.impact.category === "Transportation"
+                        ? "directions-bus"
+                        : post.impact.category === "Plantation"
+                          ? "park"
+                          : post.impact.category === "Recycling"
+                            ? "recycling"
+                            : post.impact.category === "Waste Management"
+                              ? "delete-outline"
+                              : post.impact.category === "Energy Conservation"
+                                ? "bolt"
+                                : "eco"
+                    }
+                    size={16}
+                    color={
+                      post.impact.category === "Transportation"
+                        ? "#3B82F6"
+                        : post.impact.category === "Plantation"
+                          ? "#047857"
+                          : post.impact.category === "Recycling"
+                            ? "#8B5CF6"
+                            : post.impact.category === "Waste Management"
+                              ? "#F59E0B"
+                              : post.impact.category === "Energy Conservation"
+                                ? "#EF4444"
+                                : "#047857"
+                    }
+                  />
+                  <Text
+                    style={[
+                      styles.categoryText,
+                      {
+                        color:
+                          post.impact.category === "Transportation"
+                            ? "#3B82F6"
+                            : post.impact.category === "Plantation"
+                              ? "#047857"
+                              : post.impact.category === "Recycling"
+                                ? "#8B5CF6"
+                                : post.impact.category === "Waste Management"
+                                  ? "#F59E0B"
+                                  : post.impact.category ===
+                                      "Energy Conservation"
+                                    ? "#EF4444"
+                                    : "#047857",
+                      },
+                    ]}
+                  >
+                    {post.impact.category}
+                  </Text>
+                </View>
 
                 {/* Impact Stats */}
                 <View style={styles.impactContainer}>
                   <View style={styles.impactBadge}>
-                    <MaterialIcons name="cloud" size={18} color="#6366F1" />
+                    <MaterialIcons name="cloud" size={18} color="#047857" />
                     <Text style={styles.impactText}>{post.impact.co2} CO₂</Text>
                   </View>
                   {post.impact.trees && (
                     <View style={styles.impactBadge}>
-                      <MaterialIcons name="park" size={18} color="#10B981" />
+                      <MaterialIcons name="park" size={18} color="#047857" />
                       <Text style={styles.impactText}>
                         {post.impact.trees} trees
                       </Text>
@@ -496,15 +578,6 @@ const Homepage = () => {
                   </Pressable>
 
                   <Pressable style={styles.cardActionButton}>
-                    <MaterialIcons
-                      name="chat-bubble-outline"
-                      size={20}
-                      color="#64748B"
-                    />
-                    <Text style={styles.actionText}>{post.comments}</Text>
-                  </Pressable>
-
-                  <Pressable style={styles.cardActionButton}>
                     <MaterialIcons name="share" size={20} color="#64748B" />
                   </Pressable>
 
@@ -524,7 +597,7 @@ const Homepage = () => {
 
         <View style={styles.feedEnd}>
           <View style={styles.feedEndIcon}>
-            <MaterialIcons name="eco" size={48} color="#6366F1" />
+            <MaterialIcons name="eco" size={48} color="#047857" />
           </View>
           <Text style={styles.feedEndText}>You're all caught up!</Text>
           <Text style={styles.feedEndSubtext}>
@@ -545,12 +618,25 @@ const Homepage = () => {
           </Pressable>
           <Text style={styles.headerTitle}>SafaStep</Text>
           <View style={styles.headerIcons}>
-            <Pressable style={styles.headerIcon}>
+            <Pressable
+              style={styles.headerIcon}
+              onPress={() => {
+                router.push("/Screens/Notifications");
+                fetchUnreadCount(); // Refresh count when returning
+              }}
+            >
               <MaterialIcons
                 name="notifications-none"
                 size={26}
                 color="#111827"
               />
+              {unreadCount > 0 && (
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.notificationBadgeText}>
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </Text>
+                </View>
+              )}
             </Pressable>
           </View>
         </View>
@@ -574,7 +660,7 @@ const Homepage = () => {
             <MaterialIcons
               name="home"
               size={26}
-              color={activeTab === "home" ? "#6366F1" : "#94A3B8"}
+              color={activeTab === "home" ? "#047857" : "#94A3B8"}
             />
           </View>
           <Text
@@ -603,7 +689,7 @@ const Homepage = () => {
             <MaterialIcons
               name="campaign"
               size={26}
-              color={activeTab === "explore" ? "#6366F1" : "#94A3B8"}
+              color={activeTab === "explore" ? "#047857" : "#94A3B8"}
             />
           </View>
           <Text
@@ -642,7 +728,7 @@ const Homepage = () => {
             <MaterialIcons
               name="eco"
               size={26}
-              color={activeTab === "calculator" ? "#6366F1" : "#94A3B8"}
+              color={activeTab === "calculator" ? "#047857" : "#94A3B8"}
             />
           </View>
           <Text
@@ -671,7 +757,7 @@ const Homepage = () => {
             <MaterialIcons
               name={activeTab === "profile" ? "person" : "person-outline"}
               size={26}
-              color={activeTab === "profile" ? "#6366F1" : "#94A3B8"}
+              color={activeTab === "profile" ? "#047857" : "#94A3B8"}
             />
           </View>
           <Text
@@ -714,7 +800,7 @@ const Homepage = () => {
           {/* Profile Section */}
           <View style={styles.menuProfileSection}>
             <View style={styles.menuAvatar}>
-              <MaterialIcons name="person" size={40} color="#6366F1" />
+              <MaterialIcons name="person" size={40} color="#047857" />
             </View>
             <Text style={styles.menuProfileName}>
               {userData?.firstName} {userData?.lastName}
@@ -734,12 +820,51 @@ const Homepage = () => {
             <Pressable
               style={styles.menuItem}
               onPress={() => {
+                router.push("/Screens/Notifications");
+                setTimeout(() => closeMenu(), 100);
+              }}
+            >
+              <MaterialIcons name="notifications" size={24} color="#6b7280" />
+              <Text style={styles.menuItemText}>Notifications</Text>
+              {unreadCount > 0 && (
+                <View
+                  style={[
+                    styles.notificationBadge,
+                    {
+                      position: "relative",
+                      top: 0,
+                      right: 0,
+                      marginLeft: "auto",
+                    },
+                  ]}
+                >
+                  <Text style={styles.notificationBadgeText}>
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </Text>
+                </View>
+              )}
+            </Pressable>
+
+            <Pressable
+              style={styles.menuItem}
+              onPress={() => {
                 router.push("/Screens/Leaderboard");
                 setTimeout(() => closeMenu(), 100);
               }}
             >
               <MaterialIcons name="leaderboard" size={24} color="#6b7280" />
               <Text style={styles.menuItemText}>Leaderboard</Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.menuItem}
+              onPress={() => {
+                router.push("/Screens/Challenges");
+                setTimeout(() => closeMenu(), 100);
+              }}
+            >
+              <MaterialIcons name="emoji-events" size={24} color="#6b7280" />
+              <Text style={styles.menuItemText}>Challenges</Text>
             </Pressable>
 
             <Pressable
@@ -831,7 +956,7 @@ const styles = StyleSheet.create({
     paddingBottom: 18,
     paddingHorizontal: 20,
     backgroundColor: "#fff",
-    shadowColor: "#6366F1",
+    shadowColor: "#047857",
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.08,
     shadowRadius: 12,
@@ -840,7 +965,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 28,
     fontWeight: "800",
-    color: "#6366F1",
+    color: "#047857",
     letterSpacing: -0.5,
   },
   headerIcons: {
@@ -851,7 +976,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "#F0F4FF",
+    backgroundColor: "#E6F4F1",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -863,13 +988,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    backgroundColor: "#6366F1",
+    backgroundColor: "#047857",
     marginHorizontal: 16,
     marginTop: 16,
     marginBottom: 20,
     padding: 24,
     borderRadius: 24,
-    shadowColor: "#6366F1",
+    shadowColor: "#047857",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.25,
     shadowRadius: 16,
@@ -887,7 +1012,7 @@ const styles = StyleSheet.create({
   },
   bannerSubtitle: {
     fontSize: 15,
-    color: "#E0E7FF",
+    color: "#B8E6D5",
     fontWeight: "500",
   },
   bannerIcon: {
@@ -915,46 +1040,36 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#F3F4F6",
   },
+  captionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 10,
+    gap: 12,
+  },
+  cardTitle: {
+    flex: 1,
+    fontSize: 19,
+    fontWeight: "800",
+    color: "#111827",
+    letterSpacing: -0.3,
+  },
   categoryBadge: {
-    position: "absolute",
-    top: 16,
-    left: 16,
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    backgroundColor: "#6366F1",
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 24,
-    zIndex: 10,
-    shadowColor: "#6366F1",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
+    gap: 4,
+    flexShrink: 0,
   },
   categoryText: {
-    fontSize: 13,
-    fontWeight: "800",
-    color: "#fff",
-    letterSpacing: 0.3,
+    fontSize: 12,
+    fontWeight: "600",
   },
   deletePostButton: {
     position: "absolute",
     top: 16,
     right: 16,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(239, 68, 68, 0.95)",
-    justifyContent: "center",
-    alignItems: "center",
+    padding: 8,
     zIndex: 10,
-    shadowColor: "#EF4444",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 5,
   },
   imageContainer: {
     position: "relative",
@@ -988,7 +1103,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: "#6366F1",
+    backgroundColor: "#047857",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -1004,14 +1119,18 @@ const styles = StyleSheet.create({
     fontSize: 19,
     fontWeight: "800",
     color: "#111827",
-    marginBottom: 10,
+    marginBottom: 12,
     letterSpacing: -0.3,
   },
-  cardDescription: {
-    fontSize: 15,
-    color: "#6B7280",
-    lineHeight: 22,
-    marginBottom: 18,
+  categoryBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginBottom: 16,
+  },
+  categoryText: {
+    fontSize: 12,
+    fontWeight: "600",
   },
   impactContainer: {
     flexDirection: "row",
@@ -1023,12 +1142,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#F0F4FF",
+    backgroundColor: "#E6F4F1",
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 16,
     borderWidth: 1.5,
-    borderColor: "#E0E7FF",
+    borderColor: "#B8E6D5",
   },
   impactText: {
     fontSize: 13,
@@ -1076,7 +1195,7 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: "#F0F4FF",
+    backgroundColor: "#E6F4F1",
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 16,
@@ -1124,7 +1243,7 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   navIconContainerActive: {
-    backgroundColor: "#EEF2FF",
+    backgroundColor: "#E6F4F1",
   },
   navText: {
     fontSize: 11,
@@ -1133,17 +1252,17 @@ const styles = StyleSheet.create({
     marginTop: -2,
   },
   navTextActive: {
-    color: "#6366F1",
+    color: "#047857",
     fontWeight: "700",
   },
   addButton: {
     width: 56,
     height: 56,
     borderRadius: 16,
-    backgroundColor: "#6366F1",
+    backgroundColor: "#047857",
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#6366F1",
+    shadowColor: "#047857",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.35,
     shadowRadius: 10,
@@ -1154,7 +1273,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "#F0F4FF",
+    backgroundColor: "#E6F4F1",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -1186,7 +1305,7 @@ const styles = StyleSheet.create({
     borderRadius: 32,
     borderWidth: 1,
     borderColor: "rgba(226, 232, 240, 0.8)",
-    shadowColor: "#6366F1",
+    shadowColor: "#047857",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.15,
     shadowRadius: 24,
@@ -1254,6 +1373,23 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "500",
     color: "#6b7280",
+  },
+  notificationBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    backgroundColor: "#F44336",
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 4,
+  },
+  notificationBadgeText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "bold",
   },
 });
 
