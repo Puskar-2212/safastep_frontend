@@ -3,23 +3,23 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  ImageBackground,
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-  KeyboardAvoidingView,
-  Platform,
+    ActivityIndicator,
+    Alert,
+    ImageBackground,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 import * as Animatable from "react-native-animatable";
 import RNPickerSelect from "react-native-picker-select";
 import { BASE_URL } from "../../constants/config";
-import { signInWithEmail, resetPassword } from "../../utils/firebaseAuth";
+import { resetPassword, signInWithEmail } from "../../utils/firebaseAuth";
 
 // Splash Screen Component
 const SplashScreen = ({ onFinish }) => {
@@ -31,23 +31,24 @@ const SplashScreen = ({ onFinish }) => {
   return (
     <View style={styles.splashContainer}>
       <View style={styles.splashIconContainer}>
-        <MaterialIcons name="eco" size={80} color="#10B981" />
+        <MaterialIcons name="eco" size={80} color="#047857" />
       </View>
       <Text style={styles.splashTitle}>SafaStep</Text>
       <Text style={styles.splashSubtitle}>Every step reduces carbon</Text>
-      <ActivityIndicator size="large" color="#10B981" style={styles.loader} />
+      <ActivityIndicator size="large" color="#047857" style={styles.loader} />
     </View>
   );
 };
 
 // Login Page Component
 const LoginPage = () => {
-  const [loginMethod, setLoginMethod] = useState('mobile'); // 'mobile' or 'email'
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [loginMethod, setLoginMethod] = useState("mobile"); // 'mobile' or 'email'
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
-  const [forgotPasswordModalVisible, setForgotPasswordModalVisible] = useState(false);
-  const [resetEmail, setResetEmail] = useState('');
+  const [forgotPasswordModalVisible, setForgotPasswordModalVisible] =
+    useState(false);
+  const [resetEmail, setResetEmail] = useState("");
   const [countryCode, setCountryCode] = useState("+977");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [pin, setPin] = useState("");
@@ -95,10 +96,10 @@ const LoginPage = () => {
 
   useEffect(() => {
     const randomImageIndex = Math.floor(
-      Math.random() * backgroundImages.length
+      Math.random() * backgroundImages.length,
     );
     const randomMessageIndex = Math.floor(
-      Math.random() * motivationalMessages.length
+      Math.random() * motivationalMessages.length,
     );
     setBackgroundImage(backgroundImages[randomImageIndex]);
     setMessage(motivationalMessages[randomMessageIndex]);
@@ -137,6 +138,11 @@ const LoginPage = () => {
         setSuccess(true);
         await AsyncStorage.setItem("mobile", fullPhoneNumber);
 
+        // Initialize push notifications
+        pushNotificationService.initialize(fullPhoneNumber).catch((err) => {
+          console.log("Push notification setup failed:", err);
+        });
+
         setTimeout(() => {
           setSuccess(false);
           router.push({
@@ -147,14 +153,14 @@ const LoginPage = () => {
       } else {
         Alert.alert(
           "Error",
-          result.detail || "Login failed. Please check your credentials."
+          result.detail || "Login failed. Please check your credentials.",
         );
       }
     } catch (error) {
       console.error("Error during login:", error);
       Alert.alert(
         "Error",
-        "Failed to connect to the server. Please try again."
+        "Failed to connect to the server. Please try again.",
       );
     } finally {
       setLoading(false);
@@ -176,14 +182,16 @@ const LoginPage = () => {
         Alert.alert(
           "Email Not Verified",
           "Please verify your email before logging in. Check your inbox for the verification link.",
-          [{ text: "OK" }]
+          [{ text: "OK" }],
         );
         return;
       }
 
       // Email verified, check if user has profile picture
       try {
-        const response = await fetch(`${BASE_URL}/user/by-identifier/${result.user.email}`);
+        const response = await fetch(
+          `${BASE_URL}/user/by-identifier/${result.user.email}`,
+        );
         const userData = await response.json();
 
         setLoading(false);
@@ -203,6 +211,7 @@ const LoginPage = () => {
             // Has profile picture, proceed to homepage
             setSuccess(true);
             await AsyncStorage.setItem("mobile", result.user.email);
+
             setTimeout(() => {
               router.push({
                 pathname: "/Dashboard/Homepage",
@@ -214,6 +223,7 @@ const LoginPage = () => {
           // User doesn't exist in backend (shouldn't happen), go to homepage anyway
           setSuccess(true);
           await AsyncStorage.setItem("mobile", result.user.email);
+
           setTimeout(() => {
             router.push({
               pathname: "/Dashboard/Homepage",
@@ -233,8 +243,8 @@ const LoginPage = () => {
   };
 
   const handleForgotPassword = async () => {
-    if (!resetEmail || !resetEmail.includes('@')) {
-      Alert.alert('Error', 'Please enter a valid email address');
+    if (!resetEmail || !resetEmail.includes("@")) {
+      Alert.alert("Error", "Please enter a valid email address");
       return;
     }
 
@@ -242,16 +252,21 @@ const LoginPage = () => {
 
     // First, check if user exists in database
     try {
-      const checkResponse = await fetch(`${BASE_URL}/user/by-identifier/${resetEmail}`);
-      
+      const checkResponse = await fetch(
+        `${BASE_URL}/user/by-identifier/${resetEmail}`,
+      );
+
       if (!checkResponse.ok) {
         setLoading(false);
-        Alert.alert('Error', 'This email is not registered. Please sign up first.');
+        Alert.alert(
+          "Error",
+          "This email is not registered. Please sign up first.",
+        );
         return;
       }
     } catch (error) {
       setLoading(false);
-      Alert.alert('Error', 'Failed to verify email. Please try again.');
+      Alert.alert("Error", "Failed to verify email. Please try again.");
       return;
     }
 
@@ -260,17 +275,17 @@ const LoginPage = () => {
     setLoading(false);
 
     if (result.success) {
-      Alert.alert('Success', result.message, [
+      Alert.alert("Success", result.message, [
         {
-          text: 'OK',
+          text: "OK",
           onPress: () => {
             setForgotPasswordModalVisible(false);
-            setResetEmail('');
-          }
-        }
+            setResetEmail("");
+          },
+        },
       ]);
     } else {
-      Alert.alert('Error', result.error);
+      Alert.alert("Error", result.error);
     }
   };
 
@@ -346,7 +361,7 @@ const LoginPage = () => {
       } else {
         Alert.alert(
           "Error",
-          result.detail || "Invalid OTP or failed to reset PIN."
+          result.detail || "Invalid OTP or failed to reset PIN.",
         );
       }
     } catch (error) {
@@ -363,286 +378,167 @@ const LoginPage = () => {
       style={styles.background}
       resizeMode="cover"
     >
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
       >
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        bounces={false}
-      >
-        <View style={styles.overlay}>
-          <Animatable.View
-            animation="fadeInDown"
-            duration={1000}
-            style={styles.headerContainer}
-          >
-            <View style={styles.logoContainer}>
-              <MaterialIcons name="eco" size={48} color="#10B981" />
-            </View>
-            <Text style={styles.motivationalText}>{message}</Text>
-          </Animatable.View>
-
-          <Animatable.View
-            animation="fadeInUp"
-            duration={1000}
-            delay={200}
-            style={styles.formContainer}
-          >
-            <Text style={styles.title}>Welcome Back</Text>
-            <Text style={styles.subtitle}>
-              Sign in to continue your journey
-            </Text>
-
-            {/* Login Method Toggle */}
-            <View style={styles.methodToggle}>
-              <Pressable
-                style={[styles.methodButton, loginMethod === 'mobile' && styles.methodButtonActive]}
-                onPress={() => setLoginMethod('mobile')}
-              >
-                <MaterialIcons 
-                  name="phone" 
-                  size={20} 
-                  color={loginMethod === 'mobile' ? '#fff' : '#6B7280'} 
-                />
-                <Text style={[styles.methodButtonText, loginMethod === 'mobile' && styles.methodButtonTextActive]}>
-                  Mobile
-                </Text>
-              </Pressable>
-              <Pressable
-                style={[styles.methodButton, loginMethod === 'email' && styles.methodButtonActive]}
-                onPress={() => setLoginMethod('email')}
-              >
-                <MaterialIcons 
-                  name="email" 
-                  size={20} 
-                  color={loginMethod === 'email' ? '#fff' : '#6B7280'} 
-                />
-                <Text style={[styles.methodButtonText, loginMethod === 'email' && styles.methodButtonTextActive]}>
-                  Email
-                </Text>
-              </Pressable>
-            </View>
-
-            {loginMethod === 'email' ? (
-              <>
-                {/* Email Login Fields */}
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Email</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="Enter your email"
-                    placeholderTextColor="#9CA3AF"
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                    value={email}
-                    onChangeText={setEmail}
-                  />
-                </View>
-
-                <View style={styles.inputGroup}>
-                  <Text style={styles.label}>Password</Text>
-                  <View style={styles.pinContainer}>
-                    <TextInput
-                      style={styles.pinInput}
-                      placeholder="Enter your password"
-                      placeholderTextColor="#9CA3AF"
-                      secureTextEntry={!isPasswordVisible}
-                      value={password}
-                      onChangeText={setPassword}
-                    />
-                    <Pressable
-                      onPress={() => setIsPasswordVisible(!isPasswordVisible)}
-                      style={styles.eyeIcon}
-                    >
-                      <MaterialIcons
-                        name={isPasswordVisible ? "visibility" : "visibility-off"}
-                        size={22}
-                        color="#6B7280"
-                      />
-                    </Pressable>
-                  </View>
-                </View>
-
-                {/* Forgot Password Link */}
-                <Pressable
-                  onPress={() => {
-                    setResetEmail(email);
-                    setForgotPasswordModalVisible(true);
-                  }}
-                  style={styles.forgotPinContainer}
-                >
-                  <Text style={styles.forgotPinText}>Forgot Password?</Text>
-                </Pressable>
-
-                {/* Email Login Button */}
-                <Pressable
-                  style={[styles.loginButton, loading && styles.buttonDisabled]}
-                  onPress={handleEmailLogin}
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <>
-                      <Text style={styles.loginButtonText}>Sign In</Text>
-                      <MaterialIcons name="arrow-forward" size={20} color="#fff" />
-                    </>
-                  )}
-                </Pressable>
-              </>
-            ) : (
-              <>
-                {/* Mobile Login Fields (Original) */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Phone Number</Text>
-              <View style={styles.phoneInputContainer}>
-                <View style={styles.countryCodeContainer}>
-                  <RNPickerSelect
-                    onValueChange={(value) => setCountryCode(value)}
-                    items={countryCodes}
-                    value={countryCode}
-                    placeholder={{ label: "Code", value: null }}
-                    useNativeAndroidPickerStyle={false}
-                    style={{
-                      inputIOS: styles.countryCodeInput,
-                      inputAndroid: styles.countryCodeInput,
-                    }}
-                  />
-                </View>
-                <TextInput
-                  style={styles.phoneNumberInput}
-                  placeholder="Enter phone number"
-                  placeholderTextColor="#9CA3AF"
-                  keyboardType="phone-pad"
-                  value={phoneNumber}
-                  onChangeText={(text) => {
-                    if (/^\d*$/.test(text) && text.length <= 10)
-                      setPhoneNumber(text);
-                  }}
-                  maxLength={10}
-                />
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          bounces={false}
+        >
+          <View style={styles.overlay}>
+            <Animatable.View
+              animation="fadeInDown"
+              duration={1000}
+              style={styles.headerContainer}
+            >
+              <View style={styles.logoContainer}>
+                <MaterialIcons name="eco" size={48} color="#047857" />
               </View>
-            </View>
+              <Text style={styles.motivationalText}>{message}</Text>
+            </Animatable.View>
 
-            {/* PIN */}
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>PIN</Text>
-              <View style={styles.pinContainer}>
-                <TextInput
-                  style={styles.pinInput}
-                  placeholder="Enter your 4-digit PIN"
-                  placeholderTextColor="#9CA3AF"
-                  secureTextEntry={!isPinVisible}
-                  keyboardType="numeric"
-                  maxLength={4}
-                  value={pin}
-                  onChangeText={(text) => {
-                    if (/^\d*$/.test(text)) setPin(text);
-                  }}
-                />
+            <Animatable.View
+              animation="fadeInUp"
+              duration={1000}
+              delay={200}
+              style={styles.formContainer}
+            >
+              <Text style={styles.title}>Welcome Back</Text>
+              <Text style={styles.subtitle}>
+                Sign in to continue your journey
+              </Text>
+
+              {/* Login Method Toggle */}
+              <View style={styles.methodToggle}>
                 <Pressable
-                  onPress={() => setIsPinVisible(!isPinVisible)}
-                  style={styles.eyeIcon}
+                  style={[
+                    styles.methodButton,
+                    loginMethod === "mobile" && styles.methodButtonActive,
+                  ]}
+                  onPress={() => setLoginMethod("mobile")}
                 >
                   <MaterialIcons
-                    name={isPinVisible ? "visibility" : "visibility-off"}
-                    size={22}
-                    color="#6B7280"
+                    name="phone"
+                    size={20}
+                    color={loginMethod === "mobile" ? "#fff" : "#6B7280"}
                   />
+                  <Text
+                    style={[
+                      styles.methodButtonText,
+                      loginMethod === "mobile" && styles.methodButtonTextActive,
+                    ]}
+                  >
+                    Mobile
+                  </Text>
+                </Pressable>
+                <Pressable
+                  style={[
+                    styles.methodButton,
+                    loginMethod === "email" && styles.methodButtonActive,
+                  ]}
+                  onPress={() => setLoginMethod("email")}
+                >
+                  <MaterialIcons
+                    name="email"
+                    size={20}
+                    color={loginMethod === "email" ? "#fff" : "#6B7280"}
+                  />
+                  <Text
+                    style={[
+                      styles.methodButtonText,
+                      loginMethod === "email" && styles.methodButtonTextActive,
+                    ]}
+                  >
+                    Email
+                  </Text>
                 </Pressable>
               </View>
-            </View>
 
-            {/* Forgot PIN */}
-            <Pressable
-              onPress={() => setModalVisible(true)}
-              style={styles.forgotPinContainer}
-            >
-              <Text style={styles.forgotPinText}>Forgot PIN?</Text>
-            </Pressable>
+              {loginMethod === "email" ? (
+                <>
+                  {/* Email Login Fields */}
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Email</Text>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="Enter your email"
+                      placeholderTextColor="#9CA3AF"
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      value={email}
+                      onChangeText={setEmail}
+                    />
+                  </View>
 
-            {/* Login Button */}
-            <Pressable
-              style={[styles.button, loading && styles.disabledButton]}
-              onPress={handleLogin}
-              disabled={loading}
-            >
-              {loading ? (
-                <ActivityIndicator size="small" color="#fff" />
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Password</Text>
+                    <View style={styles.pinContainer}>
+                      <TextInput
+                        style={styles.pinInput}
+                        placeholder="Enter your password"
+                        placeholderTextColor="#9CA3AF"
+                        secureTextEntry={!isPasswordVisible}
+                        value={password}
+                        onChangeText={setPassword}
+                      />
+                      <Pressable
+                        onPress={() => setIsPasswordVisible(!isPasswordVisible)}
+                        style={styles.eyeIcon}
+                      >
+                        <MaterialIcons
+                          name={
+                            isPasswordVisible ? "visibility" : "visibility-off"
+                          }
+                          size={22}
+                          color="#6B7280"
+                        />
+                      </Pressable>
+                    </View>
+                  </View>
+
+                  {/* Forgot Password Link */}
+                  <Pressable
+                    onPress={() => {
+                      setResetEmail(email);
+                      setForgotPasswordModalVisible(true);
+                    }}
+                    style={styles.forgotPinContainer}
+                  >
+                    <Text style={styles.forgotPinText}>Forgot Password?</Text>
+                  </Pressable>
+
+                  {/* Email Login Button */}
+                  <Pressable
+                    style={[
+                      styles.loginButton,
+                      loading && styles.buttonDisabled,
+                    ]}
+                    onPress={handleEmailLogin}
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <>
+                        <Text style={styles.loginButtonText}>Sign In</Text>
+                        <MaterialIcons
+                          name="arrow-forward"
+                          size={20}
+                          color="#fff"
+                        />
+                      </>
+                    )}
+                  </Pressable>
+                </>
               ) : (
                 <>
-                  <Text style={styles.buttonText}>Sign In</Text>
-                  <MaterialIcons name="arrow-forward" size={20} color="#fff" />
-                </>
-              )}
-            </Pressable>
-              </>
-            )}
-
-            {/* Register Link */}
-            <Pressable 
-              style={styles.registerLink}
-              onPress={() => router.push('/Screens/SignIn')}
-            >
-              <Text style={styles.registerText}>
-                Don't have an account?{" "}
-                <Text style={styles.registerTextBold}>Sign Up</Text>
-              </Text>
-            </Pressable>
-          </Animatable.View>
-        </View>
-      </ScrollView>
-
-      {/* Success Modal */}
-      <Modal visible={success} animationType="fade" transparent={true}>
-        <View style={styles.successModalOverlay}>
-          <Animatable.View
-            animation="zoomIn"
-            duration={500}
-            style={styles.successModalContent}
-          >
-            <View style={styles.successIconContainer}>
-              <MaterialIcons name="check-circle" size={80} color="#10B981" />
-            </View>
-            <Text style={styles.successText}>Login Successful!</Text>
-            <Text style={styles.successSubtext}>Welcome back to SafaStep</Text>
-          </Animatable.View>
-        </View>
-      </Modal>
-
-      {/* Forgot PIN Modal */}
-      <Modal visible={modalVisible} animationType="slide" transparent={true}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {otpSent ? "Verify OTP" : "Reset PIN"}
-              </Text>
-              <Pressable
-                onPress={() => {
-                  setModalVisible(false);
-                  setOtpSent(false);
-                  setOtp("");
-                  setNewPin("");
-                }}
-              >
-                <MaterialIcons name="close" size={24} color="#374151" />
-              </Pressable>
-            </View>
-
-            <ScrollView showsVerticalScrollIndicator={false}>
-              {!otpSent ? (
-                <>
-                  <Text style={styles.modalDescription}>
-                    Enter your phone number to receive a verification code
-                  </Text>
-
-                  <View style={styles.modalInputGroup}>
-                    <Text style={styles.modalLabel}>Phone Number</Text>
+                  {/* Mobile Login Fields (Original) */}
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>Phone Number</Text>
                     <View style={styles.phoneInputContainer}>
                       <View style={styles.countryCodeContainer}>
                         <RNPickerSelect
@@ -672,60 +568,28 @@ const LoginPage = () => {
                     </View>
                   </View>
 
-                  <Pressable
-                    style={[styles.button, loading && styles.disabledButton]}
-                    onPress={handleForgotPin}
-                    disabled={loading}
-                  >
-                    {loading ? (
-                      <ActivityIndicator size="small" color="#fff" />
-                    ) : (
-                      <Text style={styles.buttonText}>Send OTP</Text>
-                    )}
-                  </Pressable>
-                </>
-              ) : (
-                <>
-                  <Text style={styles.modalDescription}>
-                    Enter the verification code sent to your phone
-                  </Text>
-
-                  <View style={styles.modalInputGroup}>
-                    <Text style={styles.modalLabel}>OTP Code</Text>
-                    <TextInput
-                      style={styles.modalInput}
-                      placeholder="Enter 6-digit OTP"
-                      placeholderTextColor="#9CA3AF"
-                      keyboardType="numeric"
-                      value={otp}
-                      onChangeText={setOtp}
-                      maxLength={6}
-                    />
-                  </View>
-
-                  <View style={styles.modalInputGroup}>
-                    <Text style={styles.modalLabel}>New PIN</Text>
+                  {/* PIN */}
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.label}>PIN</Text>
                     <View style={styles.pinContainer}>
                       <TextInput
                         style={styles.pinInput}
-                        placeholder="Enter 4-digit PIN"
+                        placeholder="Enter your 4-digit PIN"
                         placeholderTextColor="#9CA3AF"
+                        secureTextEntry={!isPinVisible}
                         keyboardType="numeric"
                         maxLength={4}
-                        secureTextEntry={!isNewPinVisible}
-                        value={newPin}
+                        value={pin}
                         onChangeText={(text) => {
-                          if (/^\d*$/.test(text)) setNewPin(text);
+                          if (/^\d*$/.test(text)) setPin(text);
                         }}
                       />
                       <Pressable
-                        onPress={() => setIsNewPinVisible(!isNewPinVisible)}
+                        onPress={() => setIsPinVisible(!isPinVisible)}
                         style={styles.eyeIcon}
                       >
                         <MaterialIcons
-                          name={
-                            isNewPinVisible ? "visibility" : "visibility-off"
-                          }
+                          name={isPinVisible ? "visibility" : "visibility-off"}
                           size={22}
                           color="#6B7280"
                         />
@@ -733,73 +597,262 @@ const LoginPage = () => {
                     </View>
                   </View>
 
+                  {/* Forgot PIN */}
+                  <Pressable
+                    onPress={() => setModalVisible(true)}
+                    style={styles.forgotPinContainer}
+                  >
+                    <Text style={styles.forgotPinText}>Forgot PIN?</Text>
+                  </Pressable>
+
+                  {/* Login Button */}
                   <Pressable
                     style={[styles.button, loading && styles.disabledButton]}
-                    onPress={handleVerifyOtp}
+                    onPress={handleLogin}
                     disabled={loading}
                   >
                     {loading ? (
                       <ActivityIndicator size="small" color="#fff" />
                     ) : (
-                      <Text style={styles.buttonText}>Verify & Reset PIN</Text>
+                      <>
+                        <Text style={styles.buttonText}>Sign In</Text>
+                        <MaterialIcons
+                          name="arrow-forward"
+                          size={20}
+                          color="#fff"
+                        />
+                      </>
                     )}
                   </Pressable>
                 </>
               )}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
 
-      {/* Forgot Password Modal */}
-      <Modal visible={forgotPasswordModalVisible} animationType="slide" transparent={true}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Reset Password</Text>
+              {/* Register Link */}
               <Pressable
-                onPress={() => {
-                  setForgotPasswordModalVisible(false);
-                  setResetEmail('');
-                }}
+                style={styles.registerLink}
+                onPress={() => router.push("/Screens/SignIn")}
               >
-                <MaterialIcons name="close" size={24} color="#374151" />
+                <Text style={styles.registerText}>
+                  Don't have an account?{" "}
+                  <Text style={styles.registerTextBold}>Sign Up</Text>
+                </Text>
               </Pressable>
-            </View>
+            </Animatable.View>
+          </View>
+        </ScrollView>
 
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <Text style={styles.modalDescription}>
-                Enter your email address and we'll send you a link to reset your password
+        {/* Success Modal */}
+        <Modal visible={success} animationType="fade" transparent={true}>
+          <View style={styles.successModalOverlay}>
+            <Animatable.View
+              animation="zoomIn"
+              duration={500}
+              style={styles.successModalContent}
+            >
+              <View style={styles.successIconContainer}>
+                <MaterialIcons name="check-circle" size={80} color="#047857" />
+              </View>
+              <Text style={styles.successText}>Login Successful!</Text>
+              <Text style={styles.successSubtext}>
+                Welcome back to SafaStep
               </Text>
+            </Animatable.View>
+          </View>
+        </Modal>
 
-              <View style={styles.modalInputGroup}>
-                <Text style={styles.modalLabel}>Email Address</Text>
-                <TextInput
-                  style={styles.modalInput}
-                  placeholder="Enter your email"
-                  placeholderTextColor="#9CA3AF"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  value={resetEmail}
-                  onChangeText={setResetEmail}
-                />
+        {/* Forgot PIN Modal */}
+        <Modal visible={modalVisible} animationType="slide" transparent={true}>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>
+                  {otpSent ? "Verify OTP" : "Reset PIN"}
+                </Text>
+                <Pressable
+                  onPress={() => {
+                    setModalVisible(false);
+                    setOtpSent(false);
+                    setOtp("");
+                    setNewPin("");
+                  }}
+                >
+                  <MaterialIcons name="close" size={24} color="#374151" />
+                </Pressable>
               </View>
 
-              <Pressable
-                style={[styles.button, loading && styles.disabledButton]}
-                onPress={handleForgotPassword}
-                disabled={loading}
-              >
-                {loading ? (
-                  <ActivityIndicator size="small" color="#fff" />
+              <ScrollView showsVerticalScrollIndicator={false}>
+                {!otpSent ? (
+                  <>
+                    <Text style={styles.modalDescription}>
+                      Enter your phone number to receive a verification code
+                    </Text>
+
+                    <View style={styles.modalInputGroup}>
+                      <Text style={styles.modalLabel}>Phone Number</Text>
+                      <View style={styles.phoneInputContainer}>
+                        <View style={styles.countryCodeContainer}>
+                          <RNPickerSelect
+                            onValueChange={(value) => setCountryCode(value)}
+                            items={countryCodes}
+                            value={countryCode}
+                            placeholder={{ label: "Code", value: null }}
+                            useNativeAndroidPickerStyle={false}
+                            style={{
+                              inputIOS: styles.countryCodeInput,
+                              inputAndroid: styles.countryCodeInput,
+                            }}
+                          />
+                        </View>
+                        <TextInput
+                          style={styles.phoneNumberInput}
+                          placeholder="Enter phone number"
+                          placeholderTextColor="#9CA3AF"
+                          keyboardType="phone-pad"
+                          value={phoneNumber}
+                          onChangeText={(text) => {
+                            if (/^\d*$/.test(text) && text.length <= 10)
+                              setPhoneNumber(text);
+                          }}
+                          maxLength={10}
+                        />
+                      </View>
+                    </View>
+
+                    <Pressable
+                      style={[styles.button, loading && styles.disabledButton]}
+                      onPress={handleForgotPin}
+                      disabled={loading}
+                    >
+                      {loading ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <Text style={styles.buttonText}>Send OTP</Text>
+                      )}
+                    </Pressable>
+                  </>
                 ) : (
-                  <Text style={styles.buttonText}>Send Reset Link</Text>
+                  <>
+                    <Text style={styles.modalDescription}>
+                      Enter the verification code sent to your phone
+                    </Text>
+
+                    <View style={styles.modalInputGroup}>
+                      <Text style={styles.modalLabel}>OTP Code</Text>
+                      <TextInput
+                        style={styles.modalInput}
+                        placeholder="Enter 6-digit OTP"
+                        placeholderTextColor="#9CA3AF"
+                        keyboardType="numeric"
+                        value={otp}
+                        onChangeText={setOtp}
+                        maxLength={6}
+                      />
+                    </View>
+
+                    <View style={styles.modalInputGroup}>
+                      <Text style={styles.modalLabel}>New PIN</Text>
+                      <View style={styles.pinContainer}>
+                        <TextInput
+                          style={styles.pinInput}
+                          placeholder="Enter 4-digit PIN"
+                          placeholderTextColor="#9CA3AF"
+                          keyboardType="numeric"
+                          maxLength={4}
+                          secureTextEntry={!isNewPinVisible}
+                          value={newPin}
+                          onChangeText={(text) => {
+                            if (/^\d*$/.test(text)) setNewPin(text);
+                          }}
+                        />
+                        <Pressable
+                          onPress={() => setIsNewPinVisible(!isNewPinVisible)}
+                          style={styles.eyeIcon}
+                        >
+                          <MaterialIcons
+                            name={
+                              isNewPinVisible ? "visibility" : "visibility-off"
+                            }
+                            size={22}
+                            color="#6B7280"
+                          />
+                        </Pressable>
+                      </View>
+                    </View>
+
+                    <Pressable
+                      style={[styles.button, loading && styles.disabledButton]}
+                      onPress={handleVerifyOtp}
+                      disabled={loading}
+                    >
+                      {loading ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <Text style={styles.buttonText}>
+                          Verify & Reset PIN
+                        </Text>
+                      )}
+                    </Pressable>
+                  </>
                 )}
-              </Pressable>
-            </ScrollView>
+              </ScrollView>
+            </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
+
+        {/* Forgot Password Modal */}
+        <Modal
+          visible={forgotPasswordModalVisible}
+          animationType="slide"
+          transparent={true}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <Text style={styles.modalTitle}>Reset Password</Text>
+                <Pressable
+                  onPress={() => {
+                    setForgotPasswordModalVisible(false);
+                    setResetEmail("");
+                  }}
+                >
+                  <MaterialIcons name="close" size={24} color="#374151" />
+                </Pressable>
+              </View>
+
+              <ScrollView showsVerticalScrollIndicator={false}>
+                <Text style={styles.modalDescription}>
+                  Enter your email address and we'll send you a link to reset
+                  your password
+                </Text>
+
+                <View style={styles.modalInputGroup}>
+                  <Text style={styles.modalLabel}>Email Address</Text>
+                  <TextInput
+                    style={styles.modalInput}
+                    placeholder="Enter your email"
+                    placeholderTextColor="#9CA3AF"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    value={resetEmail}
+                    onChangeText={setResetEmail}
+                  />
+                </View>
+
+                <Pressable
+                  style={[styles.button, loading && styles.disabledButton]}
+                  onPress={handleForgotPassword}
+                  disabled={loading}
+                >
+                  {loading ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.buttonText}>Send Reset Link</Text>
+                  )}
+                </Pressable>
+              </ScrollView>
+            </View>
+          </View>
+        </Modal>
       </KeyboardAvoidingView>
     </ImageBackground>
   );
@@ -840,7 +893,7 @@ const styles = StyleSheet.create({
   },
   splashSubtitle: {
     fontSize: 16,
-    color: "#10B981",
+    color: "#047857",
     fontWeight: "500",
     marginBottom: 32,
   },
@@ -971,18 +1024,18 @@ const styles = StyleSheet.create({
   },
   forgotPinText: {
     fontSize: 14,
-    color: "#10B981",
+    color: "#047857",
     fontWeight: "600",
   },
   button: {
-    backgroundColor: "#10B981",
+    backgroundColor: "#047857",
     height: 56,
     borderRadius: 14,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    shadowColor: "#10B981",
+    shadowColor: "#047857",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -1006,14 +1059,14 @@ const styles = StyleSheet.create({
     color: "#6B7280",
   },
   registerTextBold: {
-    color: "#10B981",
+    color: "#047857",
     fontWeight: "700",
   },
 
   // Method Toggle Styles
   methodToggle: {
-    flexDirection: 'row',
-    backgroundColor: '#F3F4F6',
+    flexDirection: "row",
+    backgroundColor: "#F3F4F6",
     borderRadius: 12,
     padding: 4,
     marginBottom: 24,
@@ -1021,54 +1074,54 @@ const styles = StyleSheet.create({
   },
   methodButton: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 12,
     borderRadius: 10,
     gap: 8,
   },
   methodButtonActive: {
-    backgroundColor: '#10B981',
+    backgroundColor: "#047857",
   },
   methodButtonText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#6B7280',
+    fontWeight: "600",
+    color: "#6B7280",
   },
   methodButtonTextActive: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
   },
 
   // Email Login Styles
   input: {
     height: 52,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: "#F9FAFB",
     borderRadius: 12,
     paddingHorizontal: 16,
     fontSize: 15,
-    color: '#111827',
+    color: "#111827",
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: "#E5E7EB",
   },
   loginButton: {
-    backgroundColor: '#10B981',
+    backgroundColor: "#047857",
     height: 56,
     borderRadius: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 8,
-    shadowColor: '#10B981',
+    shadowColor: "#047857",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 4,
   },
   loginButtonText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     fontSize: 16,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   buttonDisabled: {
     opacity: 0.6,
@@ -1104,7 +1157,7 @@ const styles = StyleSheet.create({
   },
   successSubtext: {
     fontSize: 15,
-    color: "#10B981",
+    color: "#047857",
     fontWeight: "500",
   },
 
@@ -1162,3 +1215,5 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
 });
+
+

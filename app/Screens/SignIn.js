@@ -315,7 +315,7 @@ const SignUp = () => {
             {/* Header Section */}
             <View style={styles.header}>
               <View style={styles.iconContainer}>
-                <MaterialIcons name="eco" size={40} color="#10B981" />
+                <MaterialIcons name="eco" size={40} color="#047857" />
               </View>
               <Text style={styles.title}>Join SafaStep</Text>
               <Text style={styles.subtitle}>Every step reduces carbon</Text>
@@ -796,7 +796,7 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 15,
-    color: '#10B981',
+    color: '#047857',
     fontWeight: '500',
   },
   form: {
@@ -871,7 +871,7 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   button: {
-    backgroundColor: '#10B981',
+    backgroundColor: '#047857',
     height: 56,
     borderRadius: 14,
     flexDirection: 'row',
@@ -879,7 +879,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 8,
     gap: 8,
-    shadowColor: '#10B981',
+    shadowColor: '#047857',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -899,7 +899,7 @@ const styles = StyleSheet.create({
     color: '#6B7280',
   },
   loginTextBold: {
-    color: '#10B981',
+    color: '#047857',
     fontWeight: '700',
   },
   modalOverlay: {
@@ -943,8 +943,8 @@ const styles = StyleSheet.create({
     margin: 4,
   },
   selectedGridButton: {
-    backgroundColor: '#10B981',
-    borderColor: '#10B981',
+    backgroundColor: '#047857',
+    borderColor: '#047857',
   },
   gridButtonText: {
     fontSize: 14,
@@ -973,7 +973,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   methodButtonActive: {
-    backgroundColor: '#10B981',
+    backgroundColor: '#047857',
   },
   methodButtonText: {
     fontSize: 14,
@@ -1021,3 +1021,5 @@ const styles = StyleSheet.create({
 });
 
 export default SignUp;
+
+
