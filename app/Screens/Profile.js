@@ -15,7 +15,7 @@ import {
     StyleSheet,
     Text,
     TextInput,
-    View
+    View,
 } from "react-native";
 import { BASE_URL } from "../../constants/config";
 
@@ -29,7 +29,7 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
     posts: 0,
     ecoPoints: 0,
   });
-  
+
   // Edit profile modal state
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editForm, setEditForm] = useState({
@@ -55,8 +55,10 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
 
   const loadCarbonFootprint = async () => {
     try {
-      const mobile = userData?.mobile || await AsyncStorage.getItem("mobile");
-      const response = await fetch(`${BASE_URL}/carbon-footprint/latest/${mobile}`);
+      const mobile = userData?.mobile || (await AsyncStorage.getItem("mobile"));
+      const response = await fetch(
+        `${BASE_URL}/carbon-footprint/latest/${mobile}`,
+      );
       const result = await response.json();
 
       if (response.ok && result.success && result.hasResult) {
@@ -83,15 +85,18 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
 
   useEffect(() => {
     calculateStats();
-  }, [userPosts]);
+  }, [userPosts, userData, viewingUserData]); // Added userData and viewingUserData as dependencies
 
   const loadUserPosts = async (targetMobile = null) => {
     try {
       // Use targetMobile if provided (viewing other user), otherwise use own mobile
-      const mobile = targetMobile || userData?.mobile || await AsyncStorage.getItem("mobile");
-      
+      const mobile =
+        targetMobile ||
+        userData?.mobile ||
+        (await AsyncStorage.getItem("mobile"));
+
       console.log("Loading posts for mobile:", mobile); // Debug log
-      
+
       const response = await fetch(`${BASE_URL}/posts/user/${mobile}`);
       const result = await response.json();
 
@@ -105,10 +110,26 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
   };
 
   const calculateStats = () => {
-    const totalLikes = userPosts.reduce((sum, post) => sum + post.likesCount, 0);
+    const totalLikes = userPosts.reduce(
+      (sum, post) => sum + post.likesCount,
+      0,
+    );
+
+    // Get ecoPoints from userData, fallback to 0 if not available
+    const userEcoPoints =
+      userData?.ecoPoints || viewingUserData?.ecoPoints || 0;
+
+    // Debug logging
+    console.log("Profile calculateStats:", {
+      userData_ecoPoints: userData?.ecoPoints,
+      viewingUserData_ecoPoints: viewingUserData?.ecoPoints,
+      final_ecoPoints: userEcoPoints,
+      userData_keys: userData ? Object.keys(userData) : "null",
+    });
+
     setStats({
       posts: userPosts.length,
-      ecoPoints: (userPosts.length * 100) + (totalLikes * 10),
+      ecoPoints: userEcoPoints,
     });
   };
 
@@ -125,42 +146,44 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
   };
 
   const handleDeletePost = (postId) => {
-    Alert.alert(
-      "Delete Post",
-      "Are you sure you want to delete this post?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const identifier = userData?.mobile || userData?.email || await AsyncStorage.getItem("mobile");
-              
-              // Check if identifier is email or mobile
-              const paramName = identifier.includes('@') ? 'email' : 'mobile';
-              
-              const response = await fetch(`${BASE_URL}/posts/${postId}?${paramName}=${identifier}`, {
+    Alert.alert("Delete Post", "Are you sure you want to delete this post?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            const identifier =
+              userData?.mobile ||
+              userData?.email ||
+              (await AsyncStorage.getItem("mobile"));
+
+            // Check if identifier is email or mobile
+            const paramName = identifier.includes("@") ? "email" : "mobile";
+
+            const response = await fetch(
+              `${BASE_URL}/posts/${postId}?${paramName}=${identifier}`,
+              {
                 method: "DELETE",
-              });
+              },
+            );
 
-              const result = await response.json();
+            const result = await response.json();
 
-              if (response.ok && result.success) {
-                Alert.alert("Success", "Post deleted successfully!");
-                // Remove post from local state
-                setUserPosts(userPosts.filter(post => post._id !== postId));
-              } else {
-                Alert.alert("Error", result.detail || "Failed to delete post");
-              }
-            } catch (error) {
-              console.error("Error deleting post:", error);
-              Alert.alert("Error", "Failed to delete post");
+            if (response.ok && result.success) {
+              Alert.alert("Success", "Post deleted successfully!");
+              // Remove post from local state
+              setUserPosts(userPosts.filter((post) => post._id !== postId));
+            } else {
+              Alert.alert("Error", result.detail || "Failed to delete post");
             }
-          },
+          } catch (error) {
+            console.error("Error deleting post:", error);
+            Alert.alert("Error", "Failed to delete post");
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const handleSettingsMenu = () => {
@@ -172,15 +195,19 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
     setEditForm({
       firstName: userData?.firstName || "",
       lastName: userData?.lastName || "",
-      dateOfBirth: userData?.dateOfBirth 
-        ? new Date(userData.dateOfBirth.year, userData.dateOfBirth.month - 1, userData.dateOfBirth.day)
+      dateOfBirth: userData?.dateOfBirth
+        ? new Date(
+            userData.dateOfBirth.year,
+            userData.dateOfBirth.month - 1,
+            userData.dateOfBirth.day,
+          )
         : new Date(),
     });
     setEditModalVisible(true);
   };
 
   const handleDateChange = (event, selectedDate) => {
-    setShowDatePicker(Platform.OS === 'ios');
+    setShowDatePicker(Platform.OS === "ios");
     if (selectedDate) {
       setEditForm({ ...editForm, dateOfBirth: selectedDate });
     }
@@ -196,16 +223,16 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
     try {
       const identifier = userData?.mobile || userData?.email;
       const formData = new FormData();
-      
+
       if (userData?.mobile) {
         formData.append("mobile", userData.mobile);
       } else if (userData?.email) {
         formData.append("email", userData.email);
       }
-      
+
       formData.append("firstName", editForm.firstName.trim());
       formData.append("lastName", editForm.lastName.trim());
-      
+
       const dobObject = {
         day: editForm.dateOfBirth.getDate(),
         month: editForm.dateOfBirth.getMonth() + 1,
@@ -256,7 +283,7 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
           text: "Cancel",
           style: "cancel",
         },
-      ]
+      ],
     );
   };
 
@@ -327,15 +354,19 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
 
       if (response.ok && result.success) {
         Alert.alert(
-          "Success! ✓", 
-          result.faceVerified 
-            ? "Profile photo updated and face verified!" 
+          "Success! ✓",
+          result.faceVerified
+            ? "Profile photo updated and face verified!"
             : "Profile photo updated!",
-          [{ text: "OK" }]
+          [{ text: "OK" }],
         );
         if (onRefresh) await onRefresh();
       } else {
-        Alert.alert("Face Verification Failed", result.detail || "Failed to update profile photo. Please use a clear photo of your face.");
+        Alert.alert(
+          "Face Verification Failed",
+          result.detail ||
+            "Failed to update profile photo. Please use a clear photo of your face.",
+        );
       }
     } catch (error) {
       console.error("Error uploading profile photo:", error);
@@ -355,9 +386,12 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
           onPress: async () => {
             try {
               const mobile = await AsyncStorage.getItem("mobile");
-              const response = await fetch(`${BASE_URL}/delete-profile-picture/${mobile}`, {
-                method: "DELETE",
-              });
+              const response = await fetch(
+                `${BASE_URL}/delete-profile-picture/${mobile}`,
+                {
+                  method: "DELETE",
+                },
+              );
 
               const result = await response.json();
 
@@ -373,17 +407,53 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
             }
           },
         },
-      ]
+      ],
     );
   };
 
   const achievements = [
-    { id: 1, icon: "eco", title: "Eco Warrior", color: "#10B981", unlocked: true },
-    { id: 2, icon: "park", title: "Tree Planter", color: "#059669", unlocked: true },
-    { id: 3, icon: "recycling", title: "Recycler", color: "#8B5CF6", unlocked: true },
-    { id: 4, icon: "bolt", title: "Energy Saver", color: "#F59E0B", unlocked: false },
-    { id: 5, icon: "water-drop", title: "Water Hero", color: "#3B82F6", unlocked: false },
-    { id: 6, icon: "directions-bike", title: "Green Commuter", color: "#6366F1", unlocked: false },
+    {
+      id: 1,
+      icon: "eco",
+      title: "Eco Warrior",
+      color: "#047857",
+      unlocked: true,
+    },
+    {
+      id: 2,
+      icon: "park",
+      title: "Tree Planter",
+      color: "#047857",
+      unlocked: true,
+    },
+    {
+      id: 3,
+      icon: "recycling",
+      title: "Recycler",
+      color: "#8B5CF6",
+      unlocked: true,
+    },
+    {
+      id: 4,
+      icon: "bolt",
+      title: "Energy Saver",
+      color: "#F59E0B",
+      unlocked: false,
+    },
+    {
+      id: 5,
+      icon: "water-drop",
+      title: "Water Hero",
+      color: "#3B82F6",
+      unlocked: false,
+    },
+    {
+      id: 6,
+      icon: "directions-bike",
+      title: "Green Commuter",
+      color: "#047857",
+      unlocked: false,
+    },
   ];
 
   return (
@@ -403,7 +473,10 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
           </Pressable>
         )}
         {!isOwnProfile && (
-          <Pressable style={styles.settingsButton} onPress={() => router.back()}>
+          <Pressable
+            style={styles.settingsButton}
+            onPress={() => router.back()}
+          >
             <MaterialIcons name="arrow-back" size={22} color="#fff" />
           </Pressable>
         )}
@@ -428,7 +501,7 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
                 style={styles.editAvatarButton}
                 onPress={handleProfilePhotoOptions}
               >
-                <MaterialIcons name="camera-alt" size={18} color="#6366F1" />
+                <MaterialIcons name="camera-alt" size={18} color="#047857" />
               </Pressable>
             </>
           ) : (
@@ -439,7 +512,7 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
         </View>
 
         <Text style={styles.userName}>
-          {isOwnProfile 
+          {isOwnProfile
             ? `${userData?.firstName} ${userData?.lastName}`
             : "Anonymous User"}
         </Text>
@@ -468,7 +541,7 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
               <Text style={styles.primaryButtonText}>Edit Profile</Text>
             </Pressable>
             <Pressable style={styles.secondaryButton}>
-              <MaterialIcons name="share" size={20} color="#6366F1" />
+              <MaterialIcons name="share" size={20} color="#047857" />
             </Pressable>
           </View>
         )}
@@ -495,7 +568,7 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
         <View style={styles.carbonFootprintCard}>
           <View style={styles.carbonFootprintHeader}>
             <View style={styles.carbonFootprintIconContainer}>
-              <MaterialIcons name="cloud" size={28} color="#6366F1" />
+              <MaterialIcons name="cloud" size={28} color="#047857" />
             </View>
             <View style={styles.carbonFootprintInfo}>
               <Text style={styles.carbonFootprintLabel}>Carbon Footprint</Text>
@@ -503,15 +576,24 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
                 <Text style={styles.carbonFootprintValue}>
                   {carbonFootprint.totalCO2} kg/day
                 </Text>
-                <View style={[
-                  styles.impactLevelBadge,
-                  { backgroundColor: 
-                    carbonFootprint.impactLevel === "Excellent" ? "#10B981" :
-                    carbonFootprint.impactLevel === "Good" ? "#3B82F6" :
-                    carbonFootprint.impactLevel === "Average" ? "#F59E0B" : "#EF4444"
-                  }
-                ]}>
-                  <Text style={styles.impactLevelText}>{carbonFootprint.impactLevel}</Text>
+                <View
+                  style={[
+                    styles.impactLevelBadge,
+                    {
+                      backgroundColor:
+                        carbonFootprint.impactLevel === "Excellent"
+                          ? "#047857"
+                          : carbonFootprint.impactLevel === "Good"
+                            ? "#3B82F6"
+                            : carbonFootprint.impactLevel === "Average"
+                              ? "#F59E0B"
+                              : "#EF4444",
+                    },
+                  ]}
+                >
+                  <Text style={styles.impactLevelText}>
+                    {carbonFootprint.impactLevel}
+                  </Text>
                 </View>
               </View>
             </View>
@@ -520,23 +602,28 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
             <View style={styles.carbonStat}>
               <MaterialIcons name="calendar-today" size={16} color="#64748B" />
               <Text style={styles.carbonStatText}>
-                {new Date(carbonFootprint.timestamp * 1000).toLocaleDateString('en-US', { 
-                  month: 'short', 
-                  day: 'numeric' 
-                })}
+                {new Date(carbonFootprint.timestamp * 1000).toLocaleDateString(
+                  "en-US",
+                  {
+                    month: "short",
+                    day: "numeric",
+                  },
+                )}
               </Text>
             </View>
             <View style={styles.carbonStat}>
-              <MaterialIcons name="park" size={16} color="#10B981" />
-              <Text style={styles.carbonStatText}>{carbonFootprint.treesNeeded} trees/year</Text>
+              <MaterialIcons name="park" size={16} color="#047857" />
+              <Text style={styles.carbonStatText}>
+                {carbonFootprint.treesNeeded} trees/year
+              </Text>
             </View>
           </View>
-          <Pressable 
+          <Pressable
             style={styles.viewHistoryButton}
             onPress={() => router.push("/Screens/CarbonFootprintHistory")}
           >
             <Text style={styles.viewHistoryText}>View Full History</Text>
-            <MaterialIcons name="chevron-right" size={20} color="#6366F1" />
+            <MaterialIcons name="chevron-right" size={20} color="#047857" />
           </Pressable>
         </View>
       )}
@@ -561,7 +648,11 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
               <View
                 style={[
                   styles.achievementIcon,
-                  { backgroundColor: achievement.unlocked ? achievement.color : "#E2E8F0" },
+                  {
+                    backgroundColor: achievement.unlocked
+                      ? achievement.color
+                      : "#E2E8F0",
+                  },
                 ]}
               >
                 <MaterialIcons
@@ -589,7 +680,7 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
           <Text style={styles.sectionTitle}>My Posts</Text>
           <Text style={styles.postCount}>{userPosts.length} posts</Text>
         </View>
-        
+
         {userPosts.length > 0 ? (
           <View style={styles.postsGrid}>
             {userPosts.map((post) => (
@@ -611,7 +702,11 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
                     style={styles.deleteButton}
                     onPress={() => handleDeletePost(post._id)}
                   >
-                    <MaterialIcons name="delete" size={18} color="#fff" />
+                    <MaterialIcons
+                      name="delete-outline"
+                      size={18}
+                      color="#fff"
+                    />
                   </Pressable>
                 )}
               </Pressable>
@@ -646,13 +741,18 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
               </Pressable>
             </View>
 
-            <ScrollView style={styles.modalBody} showsVerticalScrollIndicator={false}>
+            <ScrollView
+              style={styles.modalBody}
+              showsVerticalScrollIndicator={false}
+            >
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>First Name</Text>
                 <TextInput
                   style={styles.formInput}
                   value={editForm.firstName}
-                  onChangeText={(text) => setEditForm({ ...editForm, firstName: text })}
+                  onChangeText={(text) =>
+                    setEditForm({ ...editForm, firstName: text })
+                  }
                   placeholder="Enter first name"
                   placeholderTextColor="#94A3B8"
                 />
@@ -663,7 +763,9 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
                 <TextInput
                   style={styles.formInput}
                   value={editForm.lastName}
-                  onChangeText={(text) => setEditForm({ ...editForm, lastName: text })}
+                  onChangeText={(text) =>
+                    setEditForm({ ...editForm, lastName: text })
+                  }
                   placeholder="Enter last name"
                   placeholderTextColor="#94A3B8"
                 />
@@ -675,12 +777,16 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
                   style={styles.datePickerButton}
                   onPress={() => setShowDatePicker(true)}
                 >
-                  <MaterialIcons name="calendar-today" size={20} color="#6366F1" />
+                  <MaterialIcons
+                    name="calendar-today"
+                    size={20}
+                    color="#047857"
+                  />
                   <Text style={styles.datePickerText}>
-                    {editForm.dateOfBirth.toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
+                    {editForm.dateOfBirth.toLocaleDateString("en-US", {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
                     })}
                   </Text>
                 </Pressable>
@@ -690,7 +796,7 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
                 <DateTimePicker
                   value={editForm.dateOfBirth}
                   mode="date"
-                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  display={Platform.OS === "ios" ? "spinner" : "default"}
                   onChange={handleDateChange}
                   maximumDate={new Date()}
                 />
@@ -705,7 +811,10 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
                 <Text style={styles.cancelButtonText}>Cancel</Text>
               </Pressable>
               <Pressable
-                style={[styles.saveButton, isUpdating && styles.saveButtonDisabled]}
+                style={[
+                  styles.saveButton,
+                  isUpdating && styles.saveButtonDisabled,
+                ]}
                 onPress={handleSaveProfile}
                 disabled={isUpdating}
               >
@@ -728,12 +837,12 @@ const styles = StyleSheet.create({
   },
   coverContainer: {
     height: 180,
-    backgroundColor: "#6366F1",
+    backgroundColor: "#047857",
     position: "relative",
   },
   coverGradient: {
     flex: 1,
-    backgroundColor: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)",
+    backgroundColor: "linear-gradient(135deg, #047857 0%, #8B5CF6 100%)",
   },
   settingsButton: {
     position: "absolute",
@@ -759,7 +868,7 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: "#6366F1",
+    backgroundColor: "#047857",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 5,
@@ -849,10 +958,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: "#6366F1",
+    backgroundColor: "#047857",
     paddingVertical: 14,
     borderRadius: 16,
-    shadowColor: "#6366F1",
+    shadowColor: "#047857",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 8,
@@ -867,7 +976,7 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 16,
-    backgroundColor: "#EEF2FF",
+    backgroundColor: "#E6F4F1",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -875,9 +984,9 @@ const styles = StyleSheet.create({
     marginHorizontal: 20,
     marginBottom: 24,
     padding: 24,
-    backgroundColor: "#10B981",
+    backgroundColor: "#047857",
     borderRadius: 24,
-    shadowColor: "#10B981",
+    shadowColor: "#047857",
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.25,
     shadowRadius: 12,
@@ -924,8 +1033,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderRadius: 20,
     borderWidth: 2,
-    borderColor: "#EEF2FF",
-    shadowColor: "#6366F1",
+    borderColor: "#E6F4F1",
+    shadowColor: "#047857",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 12,
@@ -941,7 +1050,7 @@ const styles = StyleSheet.create({
     width: 52,
     height: 52,
     borderRadius: 14,
-    backgroundColor: "#EEF2FF",
+    backgroundColor: "#E6F4F1",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -1006,7 +1115,7 @@ const styles = StyleSheet.create({
   viewHistoryText: {
     fontSize: 14,
     fontWeight: "700",
-    color: "#6366F1",
+    color: "#047857",
   },
   section: {
     marginBottom: 24,
@@ -1027,7 +1136,7 @@ const styles = StyleSheet.create({
   seeAllText: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#6366F1",
+    color: "#047857",
   },
   postCount: {
     fontSize: 14,
@@ -1239,9 +1348,9 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 14,
     borderRadius: 12,
-    backgroundColor: "#6366F1",
+    backgroundColor: "#047857",
     alignItems: "center",
-    shadowColor: "#6366F1",
+    shadowColor: "#047857",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 8,
