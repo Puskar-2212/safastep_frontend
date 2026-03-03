@@ -37,8 +37,8 @@ const CreatePost = ({ visible, onClose, onPostCreated }) => {
       id: "plantation",
       name: "Plantation",
       icon: "park",
-      color: "#10B981",
-      bgColor: "#D1FAE5",
+      color: "#047857",
+      bgColor: "#E6F4F1",
       description: "Tree planting & gardening",
     },
     {
@@ -329,7 +329,7 @@ const CreatePost = ({ visible, onClose, onPostCreated }) => {
                 <MaterialIcons
                   name="add-photo-alternate"
                   size={64}
-                  color="#10B981"
+                  color="#047857"
                 />
                 <Text style={styles.selectImageText}>Add Photo</Text>
               </Pressable>
@@ -387,7 +387,7 @@ const styles = StyleSheet.create({
   modalPost: {
     fontSize: 17,
     fontWeight: "800",
-    color: "#10B981",
+    color: "#047857",
   },
   modalPostDisabled: {
     color: "#9CA3AF",
@@ -401,7 +401,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F9FAFB",
     borderRadius: 20,
     borderWidth: 3,
-    borderColor: "#D1FAE5",
+    borderColor: "#E6F4F1",
     borderStyle: "dashed",
     justifyContent: "center",
     alignItems: "center",
@@ -410,7 +410,7 @@ const styles = StyleSheet.create({
   selectImageText: {
     fontSize: 17,
     fontWeight: "700",
-    color: "#10B981",
+    color: "#047857",
     marginTop: 14,
   },
   imagePreviewContainer: {
@@ -459,7 +459,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#ECFDF5",
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#D1FAE5",
+    borderColor: "#E6F4F1",
   },
   captionTipsText: {
     flex: 1,
@@ -589,3 +589,5 @@ const styles = StyleSheet.create({
 });
 
 export default CreatePost;
+
+

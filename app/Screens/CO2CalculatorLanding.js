@@ -60,7 +60,7 @@ const CO2CalculatorLanding = () => {
   const getCO2LevelInfo = (level) => {
     switch (level) {
       case "Excellent":
-        return { color: "#10B981", icon: "eco", emoji: "🌟" };
+        return { color: "#047857", icon: "eco", emoji: "🌟" };
       case "Good":
         return { color: "#3B82F6", icon: "thumb-up", emoji: "👍" };
       case "Average":
@@ -68,14 +68,14 @@ const CO2CalculatorLanding = () => {
       case "High":
         return { color: "#EF4444", icon: "warning", emoji: "🔴" };
       default:
-        return { color: "#6366F1", icon: "eco", emoji: "🌍" };
+        return { color: "#047857", icon: "eco", emoji: "🌍" };
     }
   };
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6366F1" />
+        <ActivityIndicator size="large" color="#047857" />
         <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
@@ -154,7 +154,7 @@ const CO2CalculatorLanding = () => {
               <Text style={styles.categoryLabel}>Energy</Text>
             </View>
             <View style={styles.categoryItem}>
-              <MaterialIcons name="restaurant" size={16} color="#10B981" />
+              <MaterialIcons name="restaurant" size={16} color="#047857" />
               <Text style={styles.categoryLabel}>Food</Text>
             </View>
             <View style={styles.categoryItem}>
@@ -367,7 +367,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: "#6366F1",
+    backgroundColor: "#047857",
     paddingVertical: 16,
     borderRadius: 12,
   },
@@ -382,3 +382,5 @@ const styles = StyleSheet.create({
 });
 
 export default CO2CalculatorLanding;
+
+

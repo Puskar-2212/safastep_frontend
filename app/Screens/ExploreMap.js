@@ -31,8 +31,8 @@ const ExploreMap = () => {
   const locationSubscription = useRef(null);
 
   const categories = [
-    { id: 'all', label: 'All', icon: 'apps', color: '#6366F1' },
-    { id: 'plantation_event', label: 'Events', icon: 'park', color: '#10B981' },
+    { id: 'all', label: 'All', icon: 'apps', color: '#047857' },
+    { id: 'plantation_event', label: 'Events', icon: 'park', color: '#047857' },
     { id: 'recycling_center', label: 'Recycle', icon: 'recycling', color: '#06B6D4' },
     { id: 'eco_store', label: 'Stores', icon: 'store', color: '#F59E0B' },
     { id: 'ngo_office', label: 'NGOs', icon: 'volunteer-activism', color: '#8B5CF6' },
@@ -128,7 +128,7 @@ const ExploreMap = () => {
 
   const getCategoryColor = (category) => {
     const cat = categories.find(c => c.id === category);
-    return cat ? cat.color : '#6366F1';
+    return cat ? cat.color : '#047857';
   };
 
   const openDirections = (location) => {
@@ -236,7 +236,7 @@ const ExploreMap = () => {
           L.marker([${center.latitude}, ${center.longitude}], {
             icon: L.divIcon({
               className: 'user-marker',
-              html: '<div style="background: #6366F1; width: 16px; height: 16px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"></div>',
+              html: '<div style="background: #047857; width: 16px; height: 16px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"></div>',
               iconSize: [16, 16]
             })
           }).addTo(map).bindPopup('You are here');
@@ -247,7 +247,7 @@ const ExploreMap = () => {
           const latLngs = routeCoords.map(coord => [coord[1], coord[0]]);
           
           const routeLayer = L.polyline(latLngs, {
-            color: '#6366F1',
+            color: '#047857',
             weight: 6,
             opacity: 0.8,
             lineJoin: 'round',
@@ -261,7 +261,7 @@ const ExploreMap = () => {
           // Eco-location markers
           const locations = ${locationsJSON};
           const categoryColors = {
-            'plantation_event': '#10B981',
+            'plantation_event': '#047857',
             'recycling_center': '#06B6D4',
             'eco_store': '#F59E0B',
             'ngo_office': '#8B5CF6',
@@ -278,7 +278,7 @@ const ExploreMap = () => {
           };
 
           locations.forEach((location, index) => {
-            const color = categoryColors[location.category] || '#6366F1';
+            const color = categoryColors[location.category] || '#047857';
             const icon = categoryIcons[location.category] || categoryIcons['plantation_event'];
             
             const marker = L.marker([location.latitude, location.longitude], {
@@ -388,7 +388,7 @@ const ExploreMap = () => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#10B981" />
+        <ActivityIndicator size="large" color="#047857" />
         <Text style={styles.loadingText}>Loading eco-locations...</Text>
       </View>
     );
@@ -477,7 +477,7 @@ const ExploreMap = () => {
         <MaterialIcons
           name={mapType === 'standard' ? 'satellite' : mapType === 'satellite' ? 'layers' : 'map'}
           size={24}
-          color="#6366F1"
+          color="#047857"
         />
         <Text style={styles.mapTypeText}>
           {mapType === 'standard' ? 'Satellite' : mapType === 'satellite' ? 'Hybrid' : 'Map'}
@@ -535,11 +535,11 @@ const ExploreMap = () => {
           {showRoute && routeInfo && (
             <View style={styles.routeInfoContainer}>
               <View style={styles.routeInfoItem}>
-                <MaterialIcons name="straighten" size={18} color="#6366F1" />
+                <MaterialIcons name="straighten" size={18} color="#047857" />
                 <Text style={styles.routeInfoText}>{routeInfo.distance} km</Text>
               </View>
               <View style={styles.routeInfoItem}>
-                <MaterialIcons name="schedule" size={18} color="#6366F1" />
+                <MaterialIcons name="schedule" size={18} color="#047857" />
                 <Text style={styles.routeInfoText}>{routeInfo.duration} min</Text>
               </View>
               {isTracking && (
@@ -699,7 +699,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#6366F1',
+    backgroundColor: '#047857',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
@@ -758,7 +758,7 @@ const styles = StyleSheet.create({
   routeInfoText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#6366F1',
+    color: '#047857',
   },
   liveIndicator: {
     flexDirection: 'row',
@@ -770,12 +770,12 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#10B981',
+    backgroundColor: '#047857',
   },
   liveText: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#10B981',
+    color: '#047857',
   },
   buttonRow: {
     flexDirection: 'row',
@@ -792,13 +792,13 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   routeButton: {
-    backgroundColor: '#10B981',
+    backgroundColor: '#047857',
   },
   clearButton: {
     backgroundColor: '#F1F5F9',
   },
   directionsButton: {
-    backgroundColor: '#6366F1',
+    backgroundColor: '#047857',
   },
   actionButtonText: {
     fontSize: 16,
@@ -825,8 +825,10 @@ const styles = StyleSheet.create({
   mapTypeText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#6366F1',
+    color: '#047857',
   },
 });
 
 export default ExploreMap;
+
+

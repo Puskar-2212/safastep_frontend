@@ -317,7 +317,7 @@ const CO2Calculator = ({ onQuizStateChange }) => {
       id: "diet_type",
       category: "Food",
       icon: "restaurant",
-      color: "#10B981",
+      color: "#047857",
       question: "What's your diet like?",
       funFact: "Beef production creates 10x more emissions than chicken!",
       options: [
@@ -332,7 +332,7 @@ const CO2Calculator = ({ onQuizStateChange }) => {
       id: "food_waste",
       category: "Food",
       icon: "restaurant-menu",
-      color: "#10B981",
+      color: "#047857",
       question: "How much food do you waste?",
       funFact: "1/3 of all food produced is wasted globally!",
       options: [
@@ -346,7 +346,7 @@ const CO2Calculator = ({ onQuizStateChange }) => {
       id: "local_food",
       category: "Food",
       icon: "local-dining",
-      color: "#10B981",
+      color: "#047857",
       question: "Do you buy local/seasonal food?",
       funFact: "Imported food travels 1,500+ miles on average!",
       options: [
@@ -563,7 +563,7 @@ const CO2Calculator = ({ onQuizStateChange }) => {
 
   const getCO2Level = () => {
     const dailyCO2 = totalCO2;
-    if (dailyCO2 < 10) return { level: "Excellent", color: "#10B981", icon: "eco" };
+    if (dailyCO2 < 10) return { level: "Excellent", color: "#047857", icon: "eco" };
     if (dailyCO2 < 20) return { level: "Good", color: "#3B82F6", icon: "thumb-up" };
     if (dailyCO2 < 30) return { level: "Average", color: "#F59E0B", icon: "info" };
     return { level: "High", color: "#EF4444", icon: "warning" };
@@ -667,7 +667,7 @@ const CO2Calculator = ({ onQuizStateChange }) => {
             <View style={styles.resultsHeaderCompact}>
             <View style={styles.headerContent}>
               <View style={styles.headerIcon}>
-                <Icon name="eco" size={28} color="#6366F1" />
+                <Icon name="eco" size={28} color="#047857" />
               </View>
               <View style={styles.headerTextContainer}>
                 <Text style={styles.headerTitle}>Your Results</Text>
@@ -714,7 +714,7 @@ const CO2Calculator = ({ onQuizStateChange }) => {
             <Animatable.View animation="fadeInUp" delay={400} style={styles.comparisonSection}>
             <View style={styles.comparisonHeader}>
               <View style={styles.comparisonTextContainer}>
-                <Text style={[styles.comparisonTitle, { color: betterThanAverage ? "#10B981" : "#F59E0B" }]}>
+                <Text style={[styles.comparisonTitle, { color: betterThanAverage ? "#047857" : "#F59E0B" }]}>
                   {betterThanAverage ? "Below Average!" : "Room for Improvement"}
                 </Text>
                 <Text style={styles.comparisonSubtitle}>
@@ -729,7 +729,7 @@ const CO2Calculator = ({ onQuizStateChange }) => {
                     styles.comparisonBarYou, 
                     { 
                       width: `${(totalCO2 / (avgGlobal * 2)) * 100}%`,
-                      backgroundColor: betterThanAverage ? "#10B981" : "#F59E0B"
+                      backgroundColor: betterThanAverage ? "#047857" : "#F59E0B"
                     }
                   ]} 
                 />
@@ -883,7 +883,7 @@ const CO2Calculator = ({ onQuizStateChange }) => {
   if (loading || selectedQuestions.length === 0) {
     return (
       <View style={styles.loadingContainer}>
-        <Icon name="eco" size={48} color="#6366F1" />
+        <Icon name="eco" size={48} color="#047857" />
         <Text style={styles.loadingText}>
           {loading ? "Loading questions..." : "Preparing your quiz..."}
         </Text>
@@ -908,7 +908,7 @@ const CO2Calculator = ({ onQuizStateChange }) => {
             duration={800}
             style={styles.celebrationOverlay}
           >
-            <Icon name="celebration" size={48} color="#10B981" />
+            <Icon name="celebration" size={48} color="#047857" />
             <Text style={styles.celebrationText}>Great Choice!</Text>
           </Animatable.View>
         </View>
@@ -921,7 +921,7 @@ const CO2Calculator = ({ onQuizStateChange }) => {
         {!showComparison ? (
           <View style={styles.headerContent}>
             <View style={styles.headerIcon}>
-              <Icon name="eco" size={28} color="#6366F1" />
+              <Icon name="eco" size={28} color="#047857" />
             </View>
             <View style={styles.headerTextContainer}>
               <Text style={styles.headerTitle}>CO₂ Calculator</Text>
@@ -933,7 +933,7 @@ const CO2Calculator = ({ onQuizStateChange }) => {
             animation="fadeIn" 
             style={styles.headerComparisonCard}
           >
-            <Icon name={currentComparisonIcon} size={24} color="#6366F1" />
+            <Icon name={currentComparisonIcon} size={24} color="#047857" />
             <Text style={styles.headerComparisonText}>{currentComparison}</Text>
           </Animatable.View>
         )}
@@ -977,7 +977,7 @@ const CO2Calculator = ({ onQuizStateChange }) => {
               <View style={styles.optionRight}>
                 {!question.dependsOn && (
                   <View style={styles.co2Badge}>
-                    <Icon name="cloud" size={14} color="#6366F1" />
+                    <Icon name="cloud" size={14} color="#047857" />
                     <Text style={styles.co2Text}>
                       {option.co2 === 0 ? "0" : option.co2.toFixed(2)}
                     </Text>
@@ -997,7 +997,7 @@ const CO2Calculator = ({ onQuizStateChange }) => {
           style={styles.currentTotal}
         >
           <View style={styles.totalIcon}>
-            <Icon name="eco" size={18} color="#10B981" />
+            <Icon name="eco" size={18} color="#047857" />
           </View>
           <Text style={styles.currentTotalLabel}>Current total:</Text>
           <Text style={styles.currentTotalValue}>{totalCO2.toFixed(2)} kg CO₂/day</Text>
@@ -1046,7 +1046,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     backgroundColor: "#fff",
     borderRadius: 20,
-    shadowColor: "#10B981",
+    shadowColor: "#047857",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.4,
     shadowRadius: 16,
@@ -1059,7 +1059,7 @@ const styles = StyleSheet.create({
   celebrationText: {
     fontSize: 18,
     fontWeight: "800",
-    color: "#10B981",
+    color: "#047857",
   },
   header: {
     paddingTop: 50,
@@ -1082,7 +1082,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 14,
-    backgroundColor: "#EEF2FF",
+    backgroundColor: "#E6F4F1",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -1122,7 +1122,7 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: "100%",
-    backgroundColor: "#6366F1",
+    backgroundColor: "#047857",
     borderRadius: 3,
   },
   questionCard: {
@@ -1173,8 +1173,8 @@ const styles = StyleSheet.create({
     borderColor: "#E2E8F0",
   },
   optionButtonPressed: {
-    backgroundColor: "#EEF2FF",
-    borderColor: "#6366F1",
+    backgroundColor: "#E6F4F1",
+    borderColor: "#047857",
     transform: [{ scale: 0.98 }],
   },
   optionLeft: {
@@ -1190,7 +1190,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#CBD5E1",
   },
   optionDotGood: {
-    backgroundColor: "#10B981",
+    backgroundColor: "#047857",
   },
   funFactCard: {
     flexDirection: "row",
@@ -1217,11 +1217,11 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     marginTop: 16,
     padding: 16,
-    backgroundColor: "#EEF2FF",
+    backgroundColor: "#E6F4F1",
     borderRadius: 14,
     borderWidth: 1.5,
     borderColor: "#C7D2FE",
-    shadowColor: "#6366F1",
+    shadowColor: "#047857",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 8,
@@ -1249,7 +1249,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "#EEF2FF",
+    backgroundColor: "#E6F4F1",
     paddingHorizontal: 8,
     paddingVertical: 5,
     borderRadius: 8,
@@ -1257,7 +1257,7 @@ const styles = StyleSheet.create({
   co2Text: {
     fontSize: 11,
     fontWeight: "800",
-    color: "#6366F1",
+    color: "#047857",
   },
   currentTotal: {
     flexDirection: "row",
@@ -1270,8 +1270,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: "#D1FAE5",
-    shadowColor: "#10B981",
+    borderColor: "#E6F4F1",
+    shadowColor: "#047857",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 6,
@@ -1293,7 +1293,7 @@ const styles = StyleSheet.create({
   currentTotalValue: {
     fontSize: 15,
     fontWeight: "800",
-    color: "#10B981",
+    color: "#047857",
     marginLeft: "auto",
   },
   bottomPadding: {
@@ -1421,8 +1421,8 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   filterChipActive: {
-    backgroundColor: "#6366F1",
-    borderColor: "#6366F1",
+    backgroundColor: "#047857",
+    borderColor: "#047857",
   },
   filterChipText: {
     fontSize: 13,
@@ -1434,7 +1434,7 @@ const styles = StyleSheet.create({
   },
   filteredTotalCard: {
     padding: 12,
-    backgroundColor: "#EEF2FF",
+    backgroundColor: "#E6F4F1",
     borderRadius: 10,
     marginBottom: 12,
     borderWidth: 1,
@@ -1455,12 +1455,12 @@ const styles = StyleSheet.create({
   filteredTotalValue: {
     fontSize: 17,
     fontWeight: "800",
-    color: "#6366F1",
+    color: "#047857",
   },
   filteredTotalPercentage: {
     fontSize: 11,
     fontWeight: "600",
-    color: "#6366F1",
+    color: "#047857",
   },
   sectionHeaderRow: {
     flexDirection: "row",
@@ -1509,7 +1509,7 @@ const styles = StyleSheet.create({
   },
   breakdownComparison: {
     fontSize: 10,
-    color: "#6366F1",
+    color: "#047857",
     fontWeight: "600",
     marginTop: 3,
     fontStyle: "italic",
@@ -1526,7 +1526,7 @@ const styles = StyleSheet.create({
   breakdownCO2: {
     fontSize: 15,
     fontWeight: "800",
-    color: "#6366F1",
+    color: "#047857",
   },
   breakdownPercentage: {
     fontSize: 11,
@@ -1559,7 +1559,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: "#D1FAE5",
+    borderColor: "#E6F4F1",
   },
   tipIconContainer: {
     width: 32,
@@ -1667,10 +1667,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    backgroundColor: "#6366F1",
+    backgroundColor: "#047857",
     padding: 16,
     borderRadius: 14,
-    shadowColor: "#6366F1",
+    shadowColor: "#047857",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 10,
@@ -1684,4 +1684,6 @@ const styles = StyleSheet.create({
 });
 
 export default CO2Calculator;
+
+
 
