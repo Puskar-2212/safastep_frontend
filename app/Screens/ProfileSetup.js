@@ -212,7 +212,7 @@ const ProfileSetup = () => {
       <View style={styles.content}>
         <Animatable.View animation="fadeInDown" duration={1000} style={styles.header}>
           <View style={styles.iconContainer}>
-            <MaterialIcons name="person-add" size={48} color="#10B981" />
+            <MaterialIcons name="person-add" size={48} color="#047857" />
           </View>
           <Text style={styles.title}>Set Your Profile Picture</Text>
           <Text style={styles.subtitle}>
@@ -239,7 +239,7 @@ const ProfileSetup = () => {
             style={[styles.selectButton, !profileImage && styles.selectButtonPrimary]}
             onPress={showImageOptions}
           >
-            <MaterialIcons name="add-photo-alternate" size={24} color={profileImage ? "#10B981" : "#fff"} />
+            <MaterialIcons name="add-photo-alternate" size={24} color={profileImage ? "#047857" : "#fff"} />
             <Text style={[styles.selectButtonText, !profileImage && styles.selectButtonTextPrimary]}>
               {profileImage ? 'Change Picture' : 'Select Picture'}
             </Text>
@@ -337,7 +337,7 @@ const styles = StyleSheet.create({
     height: 200,
     borderRadius: 100,
     borderWidth: 4,
-    borderColor: '#10B981',
+    borderColor: '#047857',
   },
   placeholderImage: {
     width: 200,
@@ -358,7 +358,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#10B981',
+    backgroundColor: '#047857',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -378,30 +378,30 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     borderWidth: 2,
-    borderColor: '#10B981',
+    borderColor: '#047857',
     backgroundColor: '#fff',
   },
   selectButtonPrimary: {
-    backgroundColor: '#10B981',
-    borderColor: '#10B981',
+    backgroundColor: '#047857',
+    borderColor: '#047857',
   },
   selectButtonText: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#10B981',
+    color: '#047857',
   },
   selectButtonTextPrimary: {
     color: '#fff',
   },
   uploadButton: {
-    backgroundColor: '#10B981',
+    backgroundColor: '#047857',
     height: 56,
     borderRadius: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    shadowColor: '#10B981',
+    shadowColor: '#047857',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -444,3 +444,5 @@ const styles = StyleSheet.create({
 });
 
 export default ProfileSetup;
+
+

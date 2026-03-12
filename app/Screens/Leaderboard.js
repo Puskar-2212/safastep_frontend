@@ -263,7 +263,7 @@ const Leaderboard = () => {
             <Text style={styles.userName}>{user.name}</Text>
             {user.active && (
               <View style={styles.activeBadge}>
-                <Ionicons name="leaf" size={12} color="#10b981" />
+                <Ionicons name="leaf" size={12} color="#047857" />
               </View>
             )}
           </View>
@@ -284,7 +284,7 @@ const Leaderboard = () => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#10b981" />
+        <ActivityIndicator size="large" color="#047857" />
       </View>
     );
   }
@@ -292,7 +292,7 @@ const Leaderboard = () => {
   return (
     <View style={styles.container}>
       {/* Header with gradient */}
-      <LinearGradient colors={["#10b981", "#059669"]} style={styles.header}>
+      <LinearGradient colors={["#047857", "#047857"]} style={styles.header}>
         <View style={styles.headerTop}>
           <TouchableOpacity
             style={styles.backButton}
@@ -378,7 +378,7 @@ const Leaderboard = () => {
         <View style={styles.listHeader}>
           <Text style={styles.listTitle}>Other Champions</Text>
           <View style={styles.activeBadgeLarge}>
-            <Ionicons name="leaf" size={14} color="#10b981" />
+            <Ionicons name="leaf" size={14} color="#047857" />
             <Text style={styles.activeText}>Active</Text>
           </View>
         </View>
@@ -509,7 +509,7 @@ const styles = StyleSheet.create({
     color: "#fff",
   },
   filterTextActive: {
-    color: "#10b981",
+    color: "#047857",
   },
   podiumContainer: {
     flexDirection: "row",
@@ -651,7 +651,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    backgroundColor: "#d1fae5",
+    backgroundColor: "#E6F4F1",
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
@@ -659,7 +659,7 @@ const styles = StyleSheet.create({
   activeText: {
     fontSize: 12,
     fontWeight: "600",
-    color: "#10b981",
+    color: "#047857",
   },
   listContainer: {
     flex: 1,
@@ -678,7 +678,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#d1fae5",
+    backgroundColor: "#E6F4F1",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
@@ -686,7 +686,7 @@ const styles = StyleSheet.create({
   rankNumber: {
     fontSize: 16,
     fontWeight: "bold",
-    color: "#10b981",
+    color: "#047857",
   },
   listAvatar: {
     width: 48,
@@ -720,7 +720,7 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: "#d1fae5",
+    backgroundColor: "#E6F4F1",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -736,7 +736,7 @@ const styles = StyleSheet.create({
   creditBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#10b981",
+    backgroundColor: "#047857",
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
@@ -750,7 +750,7 @@ const styles = StyleSheet.create({
   yourPositionCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#10b981",
+    backgroundColor: "#047857",
     borderRadius: 16,
     padding: 16,
     marginTop: 20,
@@ -768,7 +768,7 @@ const styles = StyleSheet.create({
   youText: {
     fontSize: 14,
     fontWeight: "bold",
-    color: "#10b981",
+    color: "#047857",
   },
   yourPositionContent: {
     flex: 1,
@@ -817,3 +817,5 @@ const styles = StyleSheet.create({
 });
 
 export default Leaderboard;
+
+

@@ -67,21 +67,21 @@ const Settings = () => {
           label: "Help Center",
           type: "navigate",
           onPress: () => Alert.alert("Help Center", "Visit our help center at help.safastep.com"),
-          color: "#10B981",
+          color: "#047857",
         },
         {
           icon: "feedback",
           label: "Send Feedback",
           type: "navigate",
           onPress: () => Alert.alert("Feedback", "Thank you for your feedback!"),
-          color: "#10B981",
+          color: "#047857",
         },
         {
           icon: "bug-report",
           label: "Report a Problem",
           type: "navigate",
           onPress: () => Alert.alert("Report Problem", "Coming soon!"),
-          color: "#10B981",
+          color: "#047857",
         },
       ],
     },
@@ -167,7 +167,7 @@ const Settings = () => {
                         value={item.value}
                         onValueChange={item.onToggle}
                         trackColor={{ false: "#E2E8F0", true: "#C7D2FE" }}
-                        thumbColor={item.value ? "#6366F1" : "#94A3B8"}
+                        thumbColor={item.value ? "#047857" : "#94A3B8"}
                       />
                     ) : (
                       <MaterialIcons
@@ -218,8 +218,8 @@ const styles = StyleSheet.create({
     paddingTop: 50,
     paddingBottom: 20,
     paddingHorizontal: 20,
-    backgroundColor: "#6366F1",
-    shadowColor: "#6366F1",
+    backgroundColor: "#047857",
+    shadowColor: "#047857",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 12,
@@ -252,7 +252,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 13,
     fontWeight: "800",
-    color: "#6366F1",
+    color: "#047857",
     marginBottom: 14,
     marginLeft: 4,
     textTransform: "uppercase",
@@ -348,3 +348,5 @@ const styles = StyleSheet.create({
 });
 
 export default Settings;
+
+

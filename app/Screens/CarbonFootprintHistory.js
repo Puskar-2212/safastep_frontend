@@ -59,7 +59,7 @@ const CarbonFootprintHistory = () => {
 
   const getImpactColor = (level) => {
     switch (level) {
-      case "Excellent": return "#10B981";
+      case "Excellent": return "#047857";
       case "Good": return "#3B82F6";
       case "Average": return "#F59E0B";
       case "High": return "#EF4444";
@@ -72,7 +72,7 @@ const CarbonFootprintHistory = () => {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#6366F1" />
+        <ActivityIndicator size="large" color="#047857" />
         <Text style={styles.loadingText}>Loading history...</Text>
       </View>
     );
@@ -120,7 +120,7 @@ const CarbonFootprintHistory = () => {
                 <MaterialIcons 
                   name={stats.improvement > 0 ? "trending-down" : "trending-up"} 
                   size={20} 
-                  color={stats.improvement > 0 ? "#10B981" : "#EF4444"} 
+                  color={stats.improvement > 0 ? "#047857" : "#EF4444"} 
                 />
               </View>
               <Text style={styles.statValue}>
@@ -131,7 +131,7 @@ const CarbonFootprintHistory = () => {
 
             <View style={styles.statCard}>
               <View style={styles.statIconContainer}>
-                <MaterialIcons name="assessment" size={20} color="#6366F1" />
+                <MaterialIcons name="assessment" size={20} color="#047857" />
               </View>
               <Text style={styles.statValue}>{stats.totalQuizzes}</Text>
               <Text style={styles.statLabel}>Quizzes</Text>
@@ -139,7 +139,7 @@ const CarbonFootprintHistory = () => {
 
             <View style={styles.statCard}>
               <View style={styles.statIconContainer}>
-                <MaterialIcons name="eco" size={20} color="#10B981" />
+                <MaterialIcons name="eco" size={20} color="#047857" />
               </View>
               <Text style={styles.statValue}>{stats.bestScore.toFixed(1)}</Text>
               <Text style={styles.statLabel}>Best</Text>
@@ -352,7 +352,7 @@ const styles = StyleSheet.create({
   historyCO2: {
     fontSize: 22,
     fontWeight: "800",
-    color: "#6366F1",
+    color: "#047857",
   },
   historyCO2Unit: {
     fontSize: 10,
@@ -398,7 +398,7 @@ const styles = StyleSheet.create({
   categoryChipValue: {
     fontSize: 10,
     fontWeight: "800",
-    color: "#6366F1",
+    color: "#047857",
   },
   emptyState: {
     flex: 1,
@@ -425,3 +425,5 @@ const styles = StyleSheet.create({
 });
 
 export default CarbonFootprintHistory;
+
+

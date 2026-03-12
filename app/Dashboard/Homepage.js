@@ -428,7 +428,7 @@ const Homepage = () => {
                         const isOwnPost =
                           currentUserIdentifier === postOwnerIdentifier;
 
-                        return isOwnPost ? post.user.name : "Anonymous User";
+                        return isOwnPost ? "You" : "Anonymous User";
                       })()}
                     </Text>
                     {(() => {

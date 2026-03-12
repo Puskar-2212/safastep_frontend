@@ -276,7 +276,7 @@ const Verification = () => {
             style={styles.headerContainer}
           >
             <View style={styles.iconContainer}>
-              <MaterialIcons name="verified-user" size={64} color="#10B981" />
+              <MaterialIcons name="verified-user" size={64} color="#047857" />
             </View>
             <Text style={styles.headerTitle}>Phone Verification</Text>
             <Text style={styles.headerSubtitle}>
@@ -435,7 +435,7 @@ const Verification = () => {
               onPress={() => router.push("./SignIn")}
               style={styles.backButton}
             >
-              <MaterialIcons name="arrow-back" size={20} color="#10B981" />
+              <MaterialIcons name="arrow-back" size={20} color="#047857" />
               <Text style={styles.backText}>Back to Sign Up</Text>
             </Pressable>
           </Animatable.View>
@@ -510,7 +510,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   stepDotActive: {
-    backgroundColor: "#10B981",
+    backgroundColor: "#047857",
   },
   stepDotInactive: {
     backgroundColor: "#E5E7EB",
@@ -545,7 +545,7 @@ const styles = StyleSheet.create({
   },
   phoneHighlight: {
     fontWeight: "700",
-    color: "#10B981",
+    color: "#047857",
   },
   inputGroup: {
     marginBottom: 24,
@@ -599,14 +599,14 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   button: {
-    backgroundColor: "#10B981",
+    backgroundColor: "#047857",
     height: 56,
     borderRadius: 14,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    shadowColor: "#10B981",
+    shadowColor: "#047857",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -637,7 +637,7 @@ const styles = StyleSheet.create({
   },
   resendLink: {
     fontSize: 14,
-    color: "#10B981",
+    color: "#047857",
     fontWeight: "700",
   },
   backButton: {
@@ -649,9 +649,11 @@ const styles = StyleSheet.create({
   },
   backText: {
     fontSize: 14,
-    color: "#10B981",
+    color: "#047857",
     fontWeight: "600",
   },
 });
 
 export default Verification;
+
+

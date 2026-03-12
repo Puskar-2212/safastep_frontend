@@ -154,12 +154,12 @@ const styles = StyleSheet.create({
   },
   coverContainer: {
     height: 180,
-    backgroundColor: "#6366F1",
+    backgroundColor: "#047857",
     position: "relative",
   },
   coverGradient: {
     flex: 1,
-    backgroundColor: "linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)",
+    backgroundColor: "linear-gradient(135deg, #047857 0%, #8B5CF6 100%)",
   },
   backButton: {
     position: "absolute",
@@ -184,7 +184,7 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: "#6366F1",
+    backgroundColor: "#047857",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 5,
@@ -311,3 +311,5 @@ const styles = StyleSheet.create({
 });
 
 export default UserProfile;
+
+

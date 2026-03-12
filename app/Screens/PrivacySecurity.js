@@ -412,7 +412,7 @@ const PrivacySecurity = () => {
 
                   {/* Info */}
                   <View style={styles.infoBox}>
-                    <MaterialIcons name="info-outline" size={20} color="#6366F1" />
+                    <MaterialIcons name="info-outline" size={20} color="#047857" />
                     <Text style={styles.infoText}>
                       Your PIN must be 4 digits and different from your current PIN
                     </Text>
@@ -550,7 +550,7 @@ const PrivacySecurity = () => {
 
                   {/* Info */}
                   <View style={styles.infoBox}>
-                    <MaterialIcons name="info-outline" size={20} color="#6366F1" />
+                    <MaterialIcons name="info-outline" size={20} color="#047857" />
                     <Text style={styles.infoText}>
                       Password must be at least 8 characters with uppercase, lowercase, and number
                     </Text>
@@ -760,7 +760,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 12,
     padding: 16,
-    backgroundColor: "#EEF2FF",
+    backgroundColor: "#E6F4F1",
     borderRadius: 12,
     marginBottom: 24,
   },
@@ -808,3 +808,5 @@ const styles = StyleSheet.create({
 });
 
 export default PrivacySecurity;
+
+

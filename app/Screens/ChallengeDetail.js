@@ -172,8 +172,13 @@ export default function ChallengeDetail() {
 
   const getDayName = (dateString) => {
     const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    const date = new Date(dateString);
+    const date = new Date(dateString + "T00:00:00");
     return days[date.getDay()];
+  };
+
+  const getFormattedDate = (dateString) => {
+    const date = new Date(dateString + "T00:00:00");
+    return date.getDate();
   };
 
   if (loading) {
@@ -238,10 +243,13 @@ export default function ChallengeDetail() {
           <Text style={styles.sectionTitle}>Daily Progress</Text>
           <View style={styles.calendar}>
             {challenge.check_ins.map((checkIn, index) => {
-              const isPast =
-                new Date(checkIn.date) < new Date().setHours(0, 0, 0, 0);
-              const isToday =
-                checkIn.date === new Date().toISOString().split("T")[0];
+              const checkInDate = new Date(checkIn.date + "T00:00:00");
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+
+              const isPast = checkInDate < today;
+              const isToday = checkInDate.getTime() === today.getTime();
+              const isFuture = checkInDate > today;
 
               return (
                 <View key={index} style={styles.dayBox}>
@@ -252,6 +260,7 @@ export default function ChallengeDetail() {
                       checkIn.checked_in && styles.dayCircleChecked,
                       isToday && !checkIn.checked_in && styles.dayCircleToday,
                       isPast && !checkIn.checked_in && styles.dayCircleMissed,
+                      isFuture && styles.dayCircleFuture,
                     ]}
                   >
                     {checkIn.checked_in ? (
@@ -261,9 +270,12 @@ export default function ChallengeDetail() {
                         style={[
                           styles.dayNumber,
                           isToday && styles.dayNumberToday,
+                          isPast &&
+                            !checkIn.checked_in &&
+                            styles.dayNumberMissed,
                         ]}
                       >
-                        {checkIn.day}
+                        {getFormattedDate(checkIn.date)}
                       </Text>
                     )}
                   </View>
@@ -281,43 +293,60 @@ export default function ChallengeDetail() {
           </View>
         </View>
 
-        {/* Check-in Section */}
-        {!challenge.completed && canCheckInToday() && (
-          <View style={styles.checkInCard}>
-            <Text style={styles.sectionTitle}>Check In for Today</Text>
-            <Text style={styles.checkInSubtitle}>
-              Did you complete today's challenge?
+        {/* Failed Challenge Message */}
+        {challenge.status === "failed" && (
+          <View style={styles.failedCard}>
+            <MaterialIcons name="error" size={48} color="#EF4444" />
+            <Text style={styles.failedText}>Challenge Failed</Text>
+            <Text style={styles.failedSubtext}>
+              {challenge.failure_reason ||
+                "You missed too many days to continue this challenge."}
             </Text>
-
-            <TextInput
-              style={styles.noteInput}
-              placeholder="Add a note (optional)"
-              placeholderTextColor="#94A3B8"
-              value={note}
-              onChangeText={setNote}
-              multiline
-              numberOfLines={3}
-            />
-
-            <Pressable
-              style={[
-                styles.checkInButton,
-                checkingIn && styles.buttonDisabled,
-              ]}
-              onPress={handleCheckIn}
-              disabled={checkingIn}
-            >
-              {checkingIn ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <>
-                  <MaterialIcons name="check-circle" size={24} color="#fff" />
-                  <Text style={styles.checkInButtonText}>Check In</Text>
-                </>
-              )}
-            </Pressable>
+            <Text style={styles.failedNote}>
+              Don't worry! You can always start a new challenge.
+            </Text>
           </View>
         )}
+
+        {/* Check-in Section */}
+        {!challenge.completed &&
+          challenge.status === "in_progress" &&
+          canCheckInToday() && (
+            <View style={styles.checkInCard}>
+              <Text style={styles.sectionTitle}>Check In for Today</Text>
+              <Text style={styles.checkInSubtitle}>
+                Did you complete today's challenge?
+              </Text>
+
+              <TextInput
+                style={styles.noteInput}
+                placeholder="Add a note (optional)"
+                placeholderTextColor="#94A3B8"
+                value={note}
+                onChangeText={setNote}
+                multiline
+                numberOfLines={3}
+              />
+
+              <Pressable
+                style={[
+                  styles.checkInButton,
+                  checkingIn && styles.buttonDisabled,
+                ]}
+                onPress={handleCheckIn}
+                disabled={checkingIn}
+              >
+                {checkingIn ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <>
+                    <MaterialIcons name="check-circle" size={24} color="#fff" />
+                    <Text style={styles.checkInButtonText}>Check In</Text>
+                  </>
+                )}
+              </Pressable>
+            </View>
+          )}
 
         {/* Completed - Claim Reward */}
         {challenge.completed &&
@@ -555,6 +584,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#FEE2E2",
     borderColor: "#FCA5A5",
   },
+  dayCircleFuture: {
+    backgroundColor: "#F8FAFC",
+    borderColor: "#E2E8F0",
+  },
   dayNumber: {
     fontSize: 14,
     fontWeight: "600",
@@ -562,6 +595,9 @@ const styles = StyleSheet.create({
   },
   dayNumberToday: {
     color: "#047857",
+  },
+  dayNumberMissed: {
+    color: "#EF4444",
   },
   noteIcon: {
     marginTop: 4,
@@ -748,5 +784,38 @@ const styles = StyleSheet.create({
     color: "#94A3B8",
     textAlign: "center",
     paddingVertical: 20,
+  },
+  failedCard: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 12,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 3,
+    borderLeftWidth: 4,
+    borderLeftColor: "#EF4444",
+  },
+  failedText: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: "#EF4444",
+    marginTop: 12,
+  },
+  failedSubtext: {
+    fontSize: 14,
+    color: "#64748B",
+    marginTop: 6,
+    textAlign: "center",
+  },
+  failedNote: {
+    fontSize: 13,
+    color: "#94A3B8",
+    marginTop: 6,
+    fontStyle: "italic",
+    textAlign: "center",
   },
 });
