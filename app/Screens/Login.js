@@ -478,7 +478,7 @@ const LoginPage = () => {
                     <Text style={styles.label}>Password</Text>
                     <View style={styles.pinContainer}>
                       <TextInput
-                        style={styles.pinInput}
+                        style={styles.passwordInput}
                         placeholder="Enter your password"
                         placeholderTextColor="#9CA3AF"
                         secureTextEntry={!isPasswordVisible}
@@ -555,7 +555,7 @@ const LoginPage = () => {
                       </View>
                       <TextInput
                         style={styles.phoneNumberInput}
-                        placeholder="Enter phone number"
+                        placeholder="Enter your number"
                         placeholderTextColor="#9CA3AF"
                         keyboardType="phone-pad"
                         value={phoneNumber}
@@ -574,7 +574,7 @@ const LoginPage = () => {
                     <View style={styles.pinContainer}>
                       <TextInput
                         style={styles.pinInput}
-                        placeholder="Enter your 4-digit PIN"
+                        placeholder="Enter your pin"
                         placeholderTextColor="#9CA3AF"
                         secureTextEntry={!isPinVisible}
                         keyboardType="numeric"
@@ -705,7 +705,7 @@ const LoginPage = () => {
                         </View>
                         <TextInput
                           style={styles.phoneNumberInput}
-                          placeholder="Enter phone number"
+                          placeholder="Enter your number"
                           placeholderTextColor="#9CA3AF"
                           keyboardType="phone-pad"
                           value={phoneNumber}
@@ -740,7 +740,7 @@ const LoginPage = () => {
                       <Text style={styles.modalLabel}>OTP Code</Text>
                       <TextInput
                         style={styles.modalInput}
-                        placeholder="Enter 6-digit OTP"
+                        placeholder="Enter OTP code"
                         placeholderTextColor="#9CA3AF"
                         keyboardType="numeric"
                         value={otp}
@@ -754,7 +754,7 @@ const LoginPage = () => {
                       <View style={styles.pinContainer}>
                         <TextInput
                           style={styles.pinInput}
-                          placeholder="Enter 4-digit PIN"
+                          placeholder="Enter new pin"
                           placeholderTextColor="#9CA3AF"
                           keyboardType="numeric"
                           maxLength={4}
@@ -977,45 +977,67 @@ const styles = StyleSheet.create({
   },
   countryCodeInput: {
     fontSize: 14,
-    paddingVertical: 12,
+    paddingVertical: 16,
     paddingHorizontal: 8,
     borderWidth: 1,
     borderColor: "#E5E7EB",
     borderRadius: 12,
     color: "#111827",
     backgroundColor: "#F9FAFB",
-    height: 52,
+    height: 56,
+    lineHeight: 18,
+    textAlignVertical: "center",
   },
   phoneNumberInput: {
     flex: 1,
-    height: 52,
+    height: 56,
     backgroundColor: "#F9FAFB",
     borderRadius: 12,
     paddingHorizontal: 16,
+    paddingVertical: 16,
     fontSize: 15,
     color: "#111827",
     borderWidth: 1,
     borderColor: "#E5E7EB",
+    lineHeight: 20,
+    textAlignVertical: "center",
   },
   pinContainer: {
     position: "relative",
   },
   pinInput: {
-    height: 52,
+    height: 56,
     backgroundColor: "#F9FAFB",
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingRight: 48,
+    paddingVertical: 16,
     fontSize: 15,
     color: "#111827",
     borderWidth: 1,
     borderColor: "#E5E7EB",
-    letterSpacing: 4,
+    letterSpacing: 1,
+    lineHeight: 20,
+    textAlignVertical: "center",
+  },
+  passwordInput: {
+    height: 56,
+    backgroundColor: "#F9FAFB",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingRight: 48,
+    paddingVertical: 16,
+    fontSize: 15,
+    color: "#111827",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    lineHeight: 20,
+    textAlignVertical: "center",
   },
   eyeIcon: {
     position: "absolute",
     right: 12,
-    top: 15,
+    top: 18,
     padding: 4,
   },
   forgotPinContainer: {
@@ -1095,14 +1117,17 @@ const styles = StyleSheet.create({
 
   // Email Login Styles
   input: {
-    height: 52,
+    height: 56,
     backgroundColor: "#F9FAFB",
     borderRadius: 12,
     paddingHorizontal: 16,
+    paddingVertical: 16,
     fontSize: 15,
     color: "#111827",
     borderWidth: 1,
     borderColor: "#E5E7EB",
+    lineHeight: 20,
+    textAlignVertical: "center",
   },
   loginButton: {
     backgroundColor: "#047857",
@@ -1204,16 +1229,16 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   modalInput: {
-    height: 52,
+    height: 56,
     backgroundColor: "#F9FAFB",
     borderRadius: 12,
     paddingHorizontal: 16,
+    paddingVertical: 16,
     fontSize: 15,
     color: "#111827",
     borderWidth: 1,
     borderColor: "#E5E7EB",
-    letterSpacing: 2,
+    lineHeight: 20,
+    textAlignVertical: "center",
   },
 });
-
-
