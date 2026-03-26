@@ -54,11 +54,27 @@ export default function PostDetail() {
 
   const handleLike = async () => {
     try {
-      const identifier = await AsyncStorage.getItem("mobile");
-      if (!identifier) return;
+      const mobile = await AsyncStorage.getItem("mobile");
+      const email = await AsyncStorage.getItem("email");
+      const identifier = mobile || email;
+
+      if (!identifier) {
+        Alert.alert("Error", "Please log in to like posts");
+        return;
+      }
 
       const formData = new FormData();
-      formData.append("mobile", identifier);
+
+      // Check if identifier is email or mobile
+      if (identifier.includes("@")) {
+        formData.append("email", identifier);
+      } else {
+        formData.append("mobile", identifier);
+      }
+
+      console.log(
+        `Liking post ${params.postId} with identifier: ${identifier}`,
+      );
 
       const response = await fetch(`${BASE_URL}/posts/${params.postId}/like`, {
         method: "POST",
@@ -68,14 +84,27 @@ export default function PostDetail() {
         },
       });
 
+      console.log(`Like response status: ${response.status}`);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Like request failed: ${response.status} - ${errorText}`);
+        Alert.alert("Error", "Failed to like post");
+        return;
+      }
+
       const data = await response.json();
 
       if (data.success) {
         setLiked(data.liked);
         setLikesCount(data.likesCount);
+      } else {
+        console.error("Like failed:", data);
+        Alert.alert("Error", data.detail || "Failed to like post");
       }
     } catch (error) {
       console.error("Error toggling like:", error);
+      Alert.alert("Error", "Failed to like post");
     }
   };
 
@@ -347,5 +376,3 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
 });
-
-

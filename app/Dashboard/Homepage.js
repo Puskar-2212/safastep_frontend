@@ -246,7 +246,14 @@ const Homepage = () => {
 
   const handleLike = async (postId) => {
     try {
-      const identifier = await AsyncStorage.getItem("mobile");
+      const mobile = await AsyncStorage.getItem("mobile");
+      const email = await AsyncStorage.getItem("email");
+      const identifier = mobile || email;
+
+      if (!identifier) {
+        Alert.alert("Error", "Please log in to like posts");
+        return;
+      }
 
       const formData = new FormData();
 
@@ -257,10 +264,22 @@ const Homepage = () => {
         formData.append("mobile", identifier);
       }
 
+      console.log(`Liking post ${postId} with identifier: ${identifier}`);
+
       const response = await fetch(`${BASE_URL}/posts/${postId}/like`, {
         method: "POST",
         body: formData,
       });
+
+      console.log(`Like response status: ${response.status}`);
+      console.log(`Like response headers:`, response.headers);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Like request failed: ${response.status} - ${errorText}`);
+        Alert.alert("Error", "Failed to like post");
+        return;
+      }
 
       const result = await response.json();
 
@@ -273,6 +292,9 @@ const Homepage = () => {
               : post,
           ),
         );
+      } else {
+        console.error("Like failed:", result);
+        Alert.alert("Error", result.detail || "Failed to like post");
       }
     } catch (error) {
       console.error("Error liking post:", error);

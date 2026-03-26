@@ -87,22 +87,44 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
     calculateStats();
   }, [userPosts, userData, viewingUserData]); // Added userData and viewingUserData as dependencies
 
+  // Debug function to log current state
+  const debugCurrentState = () => {
+    console.log("=== DEBUG PROFILE STATE ===");
+    console.log("userData:", userData);
+    console.log("userPosts count:", userPosts.length);
+    console.log(
+      "userPosts IDs:",
+      userPosts.map((p) => p._id),
+    );
+    console.log("isOwnProfile:", isOwnProfile);
+    console.log("viewingUserId:", viewingUserId);
+    console.log("========================");
+  };
+
   const loadUserPosts = async (targetMobile = null) => {
     try {
-      // Use targetMobile if provided (viewing other user), otherwise use own mobile
-      const mobile =
+      // Use targetMobile if provided (viewing other user), otherwise use own identifier
+      const identifier =
         targetMobile ||
         userData?.mobile ||
-        (await AsyncStorage.getItem("mobile"));
+        userData?.email ||
+        (await AsyncStorage.getItem("mobile")) ||
+        (await AsyncStorage.getItem("email"));
 
-      console.log("Loading posts for mobile:", mobile); // Debug log
+      console.log("Loading posts for identifier:", identifier); // Debug log
 
-      const response = await fetch(`${BASE_URL}/posts/user/${mobile}`);
+      const response = await fetch(
+        `${BASE_URL}/posts/user/${identifier}?_t=${Date.now()}`,
+      );
       const result = await response.json();
 
       if (response.ok && result.success) {
-        console.log(`Loaded ${result.posts.length} posts for user ${mobile}`); // Debug log
+        console.log(
+          `Loaded ${result.posts.length} posts for user ${identifier}`,
+        ); // Debug log
         setUserPosts(result.posts);
+      } else {
+        console.error("Failed to load posts:", result);
       }
     } catch (error) {
       console.error("Error loading user posts:", error);
@@ -135,14 +157,22 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    if (viewingUserId && !isOwnProfile) {
-      await loadViewingUserData();
-    } else {
-      await loadUserPosts();
-      await loadCarbonFootprint();
-      if (onRefresh) await onRefresh();
+    try {
+      if (viewingUserId && !isOwnProfile) {
+        await loadViewingUserData();
+      } else {
+        // Clear local state first to force re-render
+        setUserPosts([]);
+
+        await loadUserPosts();
+        await loadCarbonFootprint();
+        if (onRefresh) await onRefresh();
+      }
+    } catch (error) {
+      console.error("Error during refresh:", error);
+    } finally {
+      setRefreshing(false);
     }
-    setRefreshing(false);
   };
 
   const handleDeletePost = (postId) => {
@@ -156,10 +186,20 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
             const identifier =
               userData?.mobile ||
               userData?.email ||
-              (await AsyncStorage.getItem("mobile"));
+              (await AsyncStorage.getItem("mobile")) ||
+              (await AsyncStorage.getItem("email"));
+
+            if (!identifier) {
+              Alert.alert("Error", "Unable to identify user");
+              return;
+            }
 
             // Check if identifier is email or mobile
             const paramName = identifier.includes("@") ? "email" : "mobile";
+
+            console.log(
+              `Deleting post ${postId} with ${paramName}: ${identifier}`,
+            );
 
             const response = await fetch(
               `${BASE_URL}/posts/${postId}?${paramName}=${identifier}`,
@@ -172,9 +212,36 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
 
             if (response.ok && result.success) {
               Alert.alert("Success", "Post deleted successfully!");
-              // Remove post from local state
-              setUserPosts(userPosts.filter((post) => post._id !== postId));
+              console.log(`Post ${postId} deleted successfully from server`);
+
+              // Debug state before clearing
+              debugCurrentState();
+
+              // Clear all posts first to force re-render
+              setUserPosts([]);
+
+              // Wait a moment for state to clear
+              await new Promise((resolve) => setTimeout(resolve, 100));
+
+              // Force refresh posts from server to ensure consistency
+              console.log("Refreshing posts from server...");
+              await loadUserPosts();
+
+              // Debug state after refresh
+              setTimeout(() => {
+                debugCurrentState();
+              }, 500);
+
+              // Also refresh user data if available
+              if (onRefresh) {
+                console.log("Calling onRefresh...");
+                await onRefresh();
+              }
+
+              // Force a manual refresh as well
+              await handleRefresh();
             } else {
+              console.error("Delete failed:", result);
               Alert.alert("Error", result.detail || "Failed to delete post");
             }
           } catch (error) {
@@ -696,6 +763,30 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
                     <Text style={styles.postStatText}>{post.likesCount}</Text>
                   </View>
                 </View>
+
+                {/* Status Badge */}
+                {post.verificationStatus === "pending_review" && (
+                  <View style={styles.statusBadge}>
+                    <MaterialIcons name="schedule" size={10} color="#F59E0B" />
+                    <Text style={styles.statusBadgeText}>Pending</Text>
+                  </View>
+                )}
+                {post.verificationStatus === "rejected" && (
+                  <View
+                    style={[styles.statusBadge, styles.statusBadgeRejected]}
+                  >
+                    <MaterialIcons name="close" size={10} color="#EF4444" />
+                    <Text
+                      style={[
+                        styles.statusBadgeText,
+                        styles.statusBadgeTextRejected,
+                      ]}
+                    >
+                      Rejected
+                    </Text>
+                  </View>
+                )}
+
                 {/* Delete button - only show on own profile */}
                 {isOwnProfile && (
                   <Pressable
@@ -704,7 +795,7 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
                   >
                     <MaterialIcons
                       name="delete-outline"
-                      size={18}
+                      size={16}
                       color="#fff"
                     />
                   </Pressable>
@@ -1218,11 +1309,11 @@ const styles = StyleSheet.create({
   },
   deleteButton: {
     position: "absolute",
-    top: 8,
-    right: 8,
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    top: 6,
+    right: 6,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: "rgba(239, 68, 68, 0.9)",
     justifyContent: "center",
     alignItems: "center",
@@ -1231,6 +1322,36 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 4,
+  },
+  statusBadge: {
+    position: "absolute",
+    top: 6,
+    left: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+    elevation: 2,
+    maxWidth: "70%", // Prevent overflow
+  },
+  statusBadgeText: {
+    fontSize: 9,
+    fontWeight: "700",
+    color: "#F59E0B",
+    letterSpacing: 0.1,
+  },
+  statusBadgeRejected: {
+    backgroundColor: "rgba(254, 242, 242, 0.95)",
+  },
+  statusBadgeTextRejected: {
+    color: "#EF4444",
   },
   emptyState: {
     alignItems: "center",
