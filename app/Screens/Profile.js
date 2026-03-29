@@ -5,17 +5,17 @@ import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
-    Alert,
-    Image,
-    Modal,
-    Platform,
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  Alert,
+  Image,
+  Modal,
+  Platform,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 import { BASE_URL } from "../../constants/config";
 
@@ -786,6 +786,19 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
                     </Text>
                   </View>
                 )}
+                {post.verificationStatus === "error" && (
+                  <View style={[styles.statusBadge, styles.statusBadgeError]}>
+                    <MaterialIcons name="error" size={10} color="#DC2626" />
+                    <Text
+                      style={[
+                        styles.statusBadgeText,
+                        styles.statusBadgeTextError,
+                      ]}
+                    >
+                      Error
+                    </Text>
+                  </View>
+                )}
 
                 {/* Delete button - only show on own profile */}
                 {isOwnProfile && (
@@ -1352,6 +1365,12 @@ const styles = StyleSheet.create({
   },
   statusBadgeTextRejected: {
     color: "#EF4444",
+  },
+  statusBadgeError: {
+    backgroundColor: "rgba(254, 226, 226, 0.95)",
+  },
+  statusBadgeTextError: {
+    color: "#DC2626",
   },
   emptyState: {
     alignItems: "center",
