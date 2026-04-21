@@ -1,29 +1,24 @@
+import { MaterialIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as ImagePicker from "expo-image-picker";
 import React, { useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Pressable,
-  Image,
-  Alert,
-  TextInput,
-  Modal,
-  KeyboardAvoidingView,
-  Platform,
+    Alert,
+    Animated,
+    Image,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
-import { MaterialIcons } from "@expo/vector-icons";
-import * as ImagePicker from "expo-image-picker";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { BASE_URL } from "../../constants/config";
 
 const CreatePost = ({ visible, onClose, onPostCreated }) => {
-  const [selectedCategory, setSelectedCategory] = useState(null);
-  const [showCategorySelection, setShowCategorySelection] = useState(true);
-  const [newPostImage, setNewPostImage] = useState(null);
-  const [newPostCaption, setNewPostCaption] = useState("");
-  const [uploading, setUploading] = useState(false);
-
   const categories = [
     {
       id: "transportation",
@@ -67,35 +62,29 @@ const CreatePost = ({ visible, onClose, onPostCreated }) => {
     },
   ];
 
-  const pickImage = async () => {
-    // Show guidance before opening camera
-    Alert.alert(
-      "Photo Guidelines",
-      "📸 For verification:\n• Include YOUR FACE clearly\n• Show the eco-action (recycling, plants, etc.)\n• Take a clear, well-lit photo\n\nThis prevents fraud and earns you Eco Points!",
-      [
-        {
-          text: "Take Photo",
-          onPress: async () => {
-            try {
-              const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ["images"],
-                allowsEditing: true,
-                aspect: [4, 3],
-                quality: 0.8,
-              });
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [showCategorySelection, setShowCategorySelection] = useState(true);
+  const [newPostImage, setNewPostImage] = useState(null);
+  const [newPostCaption, setNewPostCaption] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [scaleAnims] = useState(categories.map(() => new Animated.Value(1)));
 
-              if (!result.canceled) {
-                setNewPostImage(result.assets[0].uri);
-              }
-            } catch (error) {
-              console.error("Error picking image:", error);
-              Alert.alert("Error", "Failed to pick image");
-            }
-          }
-        },
-        { text: "Cancel", style: "cancel" }
-      ]
-    );
+  const pickImage = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.8,
+      });
+
+      if (!result.canceled) {
+        setNewPostImage(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error("Error picking image:", error);
+      Alert.alert("Error", "Failed to pick image");
+    }
   };
 
   const handleCategorySelect = (category) => {
@@ -103,9 +92,30 @@ const CreatePost = ({ visible, onClose, onPostCreated }) => {
     setShowCategorySelection(false);
   };
 
+  const handleCategoryPress = (category, index) => {
+    // Animate press
+    Animated.sequence([
+      Animated.timing(scaleAnims[index], {
+        toValue: 0.92,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnims[index], {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      handleCategorySelect(category);
+    });
+  };
+
   const handleCreatePost = async () => {
     if (!newPostImage || !newPostCaption.trim()) {
-      Alert.alert("Missing Information", "Please add both an image and caption");
+      Alert.alert(
+        "Missing Information",
+        "Please add both an image and caption",
+      );
       return;
     }
 
@@ -120,14 +130,14 @@ const CreatePost = ({ visible, onClose, onPostCreated }) => {
       const identifier = await AsyncStorage.getItem("mobile"); // This stores both mobile and email
 
       const formData = new FormData();
-      
+
       // Check if identifier is email or mobile
-      if (identifier.includes('@')) {
+      if (identifier.includes("@")) {
         formData.append("email", identifier);
       } else {
         formData.append("mobile", identifier);
       }
-      
+
       formData.append("caption", newPostCaption);
       formData.append("category", selectedCategory.name);
       formData.append("categoryId", selectedCategory.id);
@@ -150,14 +160,10 @@ const CreatePost = ({ visible, onClose, onPostCreated }) => {
       const result = await response.json();
 
       if (response.ok && result.success) {
-        const rewards = result.rewards || {};
-        const ecoPoints = rewards.ecoPoints || 0;
-        const co2Offset = rewards.co2Offset || 0;
-        
         Alert.alert(
-          "Success! ✓", 
-          `Your eco-action has been verified and shared!\n\n🎉 Rewards Earned:\n• ${ecoPoints} Eco Points\n• ${co2Offset} kg CO₂ Offset\n\nVerification Score: ${result.post?.verificationScore || 'N/A'}/100`,
-          [{ text: "OK" }]
+          "Success!",
+          "Your post has been submitted successfully and will be reviewed by our admin team shortly.",
+          [{ text: "OK" }],
         );
         resetForm();
         onPostCreated();
@@ -165,12 +171,8 @@ const CreatePost = ({ visible, onClose, onPostCreated }) => {
       } else {
         // Handle verification failure
         const errorDetail = result.detail || "Failed to create post";
-        
-        Alert.alert(
-          "Verification Failed",
-          errorDetail,
-          [{ text: "OK" }]
-        );
+
+        Alert.alert("Verification Failed", errorDetail, [{ text: "OK" }]);
       }
     } catch (error) {
       console.error("Error creating post:", error);
@@ -195,7 +197,7 @@ const CreatePost = ({ visible, onClose, onPostCreated }) => {
   return (
     <Modal visible={visible} animationType="slide" transparent={false}>
       {showCategorySelection ? (
-        // Category Selection Screen
+        // Category Selection Screen - Compact List
         <View style={styles.categoryModalContainer}>
           <View style={styles.categoryModalHeader}>
             <Pressable style={styles.closeButton} onPress={handleClose}>
@@ -205,154 +207,143 @@ const CreatePost = ({ visible, onClose, onPostCreated }) => {
             <View style={{ width: 40 }} />
           </View>
 
-          <ScrollView
-            style={styles.categoryScrollView}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.categoryScrollContent}
-          >
-            <View style={styles.categoriesGrid}>
-              {categories.map((category, index) => (
+          <View style={styles.categoryContent}>
+            {categories.map((category, index) => (
+              <Animated.View
+                key={category.id}
+                style={{ transform: [{ scale: scaleAnims[index] }] }}
+              >
                 <Pressable
-                  key={category.id}
-                  style={({ pressed }) => [
-                    styles.categoryCard,
-                    pressed && styles.categoryCardPressed,
-                  ]}
-                  onPress={() => handleCategorySelect(category)}
+                  style={styles.categoryListCard}
+                  onPress={() => handleCategoryPress(category, index)}
                 >
-                  <View style={styles.categoryCardInner}>
-                    <View
-                      style={[
-                        styles.categoryIconContainer,
-                        { backgroundColor: category.bgColor },
-                      ]}
-                    >
-                      <MaterialIcons
-                        name={category.icon}
-                        size={40}
-                        color={category.color}
-                      />
-                    </View>
-                    <View style={styles.categoryTextContainer}>
-                      <Text style={styles.categoryName}>{category.name}</Text>
-                      <Text style={styles.categoryDescription}>
-                        {category.description}
-                      </Text>
-                    </View>
-                    <View
-                      style={[
-                        styles.categoryArrowCircle,
-                        { backgroundColor: category.bgColor },
-                      ]}
-                    >
-                      <MaterialIcons
-                        name="arrow-forward-ios"
-                        size={18}
-                        color={category.color}
-                      />
-                    </View>
+                  <View
+                    style={[
+                      styles.categoryListIcon,
+                      { backgroundColor: category.bgColor },
+                    ]}
+                  >
+                    <MaterialIcons
+                      name={category.icon}
+                      size={23}
+                      color={category.color}
+                    />
                   </View>
+                  <View style={styles.categoryListText}>
+                    <Text style={styles.categoryListName}>{category.name}</Text>
+                    <Text style={styles.categoryListDesc}>
+                      {category.description}
+                    </Text>
+                  </View>
+                  <MaterialIcons
+                    name="chevron-right"
+                    size={19}
+                    color="#CBD5E1"
+                  />
                 </Pressable>
-              ))}
-            </View>
-          </ScrollView>
+              </Animated.View>
+            ))}
+          </View>
         </View>
       ) : (
         // Create Post Screen
-        <KeyboardAvoidingView 
+        <KeyboardAvoidingView
           style={styles.modalContainer}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
         >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Pressable onPress={handleClose}>
-              <MaterialIcons name="close" size={28} color="#111827" />
-            </Pressable>
-            <Text style={styles.modalTitle}>Share Eco-Action</Text>
-            <Pressable
-              onPress={handleCreatePost}
-              disabled={uploading || !newPostImage || !newPostCaption.trim()}
-            >
-              <Text
-                style={[
-                  styles.modalPost,
-                  (!newPostImage || !newPostCaption.trim()) &&
-                    styles.modalPostDisabled,
-                ]}
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Pressable onPress={handleClose}>
+                <MaterialIcons name="close" size={26} color="#111827" />
+              </Pressable>
+              <Text style={styles.modalTitle}>Share Eco-Action</Text>
+              <Pressable
+                onPress={handleCreatePost}
+                disabled={uploading || !newPostImage || !newPostCaption.trim()}
               >
-                {uploading ? "Posting..." : "Post"}
-              </Text>
-            </Pressable>
-          </View>
-
-          <ScrollView style={styles.modalContent} keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}>
-            {selectedCategory && (
-              <View
-                style={[
-                  styles.selectedCategoryBanner,
-                  { backgroundColor: selectedCategory.bgColor },
-                ]}
-              >
-                <MaterialIcons
-                  name={selectedCategory.icon}
-                  size={24}
-                  color={selectedCategory.color}
-                />
                 <Text
                   style={[
-                    styles.selectedCategoryText,
-                    { color: selectedCategory.color },
+                    styles.modalPost,
+                    (!newPostImage || !newPostCaption.trim()) &&
+                      styles.modalPostDisabled,
                   ]}
                 >
-                  {selectedCategory.name}
+                  {uploading ? "Posting..." : "Post"}
+                </Text>
+              </Pressable>
+            </View>
+
+            <ScrollView
+              style={styles.modalContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              {selectedCategory && (
+                <View
+                  style={[
+                    styles.selectedCategoryBanner,
+                    { backgroundColor: selectedCategory.bgColor },
+                  ]}
+                >
+                  <MaterialIcons
+                    name={selectedCategory.icon}
+                    size={20}
+                    color={selectedCategory.color}
+                  />
+                  <Text
+                    style={[
+                      styles.selectedCategoryText,
+                      { color: selectedCategory.color },
+                    ]}
+                  >
+                    {selectedCategory.name}
+                  </Text>
+                </View>
+              )}
+
+              {newPostImage ? (
+                <View style={styles.imagePreviewContainer}>
+                  <Image
+                    source={{ uri: newPostImage }}
+                    style={styles.imagePreview}
+                  />
+                  <Pressable
+                    style={styles.removeImageButton}
+                    onPress={() => setNewPostImage(null)}
+                  >
+                    <MaterialIcons name="close" size={20} color="#fff" />
+                  </Pressable>
+                </View>
+              ) : (
+                <Pressable style={styles.selectImageButton} onPress={pickImage}>
+                  <MaterialIcons
+                    name="add-photo-alternate"
+                    size={48}
+                    color="#047857"
+                  />
+                  <Text style={styles.selectImageText}>Add Photo</Text>
+                </Pressable>
+              )}
+
+              <TextInput
+                style={styles.captionInput}
+                placeholder="Share your eco-action story..."
+                placeholderTextColor="#9CA3AF"
+                multiline
+                value={newPostCaption}
+                onChangeText={setNewPostCaption}
+                maxLength={500}
+              />
+
+              <View style={styles.captionTips}>
+                <MaterialIcons name="info-outline" size={20} color="#6B7280" />
+                <Text style={styles.captionTipsText}>
+                  Share what eco-friendly action you took and inspire others!
                 </Text>
               </View>
-            )}
-
-            {newPostImage ? (
-              <View style={styles.imagePreviewContainer}>
-                <Image
-                  source={{ uri: newPostImage }}
-                  style={styles.imagePreview}
-                />
-                <Pressable
-                  style={styles.removeImageButton}
-                  onPress={() => setNewPostImage(null)}
-                >
-                  <MaterialIcons name="close" size={24} color="#fff" />
-                </Pressable>
-              </View>
-            ) : (
-              <Pressable style={styles.selectImageButton} onPress={pickImage}>
-                <MaterialIcons
-                  name="add-photo-alternate"
-                  size={64}
-                  color="#047857"
-                />
-                <Text style={styles.selectImageText}>Add Photo</Text>
-              </Pressable>
-            )}
-
-            <TextInput
-              style={styles.captionInput}
-              placeholder="Share your eco-action story... 🌱"
-              placeholderTextColor="#9CA3AF"
-              multiline
-              value={newPostCaption}
-              onChangeText={setNewPostCaption}
-              maxLength={500}
-            />
-
-            <View style={styles.captionTips}>
-              <MaterialIcons name="info-outline" size={20} color="#6B7280" />
-              <Text style={styles.captionTipsText}>
-                Share what eco-friendly action you took and inspire others!
-              </Text>
-            </View>
-          </ScrollView>
-        </View>
+            </ScrollView>
+          </View>
         </KeyboardAvoidingView>
       )}
     </Modal>
@@ -362,232 +353,186 @@ const CreatePost = ({ visible, onClose, onPostCreated }) => {
 const styles = StyleSheet.create({
   modalContainer: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: "#F8F9FE",
   },
   modalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingTop: 50,
-    paddingBottom: 18,
+    paddingBottom: 14,
     paddingHorizontal: 20,
     backgroundColor: "#fff",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 19,
     fontWeight: "800",
     color: "#111827",
     letterSpacing: -0.3,
   },
   modalPost: {
-    fontSize: 17,
+    fontSize: 16,
     fontWeight: "800",
     color: "#047857",
   },
   modalPostDisabled: {
-    color: "#9CA3AF",
+    color: "#CBD5E1",
   },
   modalContent: {
     flex: 1,
-    padding: 20,
+    padding: 16,
   },
   selectImageButton: {
-    height: 320,
-    backgroundColor: "#F9FAFB",
-    borderRadius: 20,
-    borderWidth: 3,
-    borderColor: "#E6F4F1",
+    height: 220,
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: "#E5E7EB",
     borderStyle: "dashed",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 14,
   },
   selectImageText: {
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: "700",
     color: "#047857",
-    marginTop: 14,
+    marginTop: 10,
   },
   imagePreviewContainer: {
     position: "relative",
-    marginBottom: 20,
+    marginBottom: 14,
   },
   imagePreview: {
     width: "100%",
-    height: 320,
-    borderRadius: 20,
+    height: 220,
+    borderRadius: 14,
     backgroundColor: "#F3F4F6",
   },
   removeImageButton: {
     position: "absolute",
-    top: 16,
-    right: 16,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    top: 10,
+    right: 10,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: "rgba(0, 0, 0, 0.7)",
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
   },
   captionInput: {
-    minHeight: 130,
-    backgroundColor: "#F9FAFB",
-    borderRadius: 16,
-    padding: 18,
-    fontSize: 16,
+    minHeight: 100,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 14,
+    fontSize: 15,
     color: "#111827",
-    borderWidth: 2,
+    borderWidth: 1,
     borderColor: "#E5E7EB",
     textAlignVertical: "top",
-    marginBottom: 18,
+    marginBottom: 14,
     fontWeight: "500",
   },
   captionTips: {
     flexDirection: "row",
-    gap: 14,
-    padding: 18,
+    gap: 10,
+    padding: 12,
     backgroundColor: "#ECFDF5",
-    borderRadius: 16,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: "#E6F4F1",
+    borderColor: "#D1FAE5",
   },
   captionTipsText: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 12,
     color: "#065F46",
-    lineHeight: 21,
+    lineHeight: 17,
     fontWeight: "500",
   },
   categoryModalContainer: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: "#F8F9FE",
   },
   categoryModalHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingTop: 50,
-    paddingBottom: 20,
+    paddingBottom: 14,
     paddingHorizontal: 20,
     backgroundColor: "#fff",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F3F4F6",
   },
   closeButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     backgroundColor: "#F3F4F6",
     justifyContent: "center",
     alignItems: "center",
   },
   categoryModalTitle: {
-    fontSize: 22,
+    fontSize: 19,
     fontWeight: "800",
     color: "#111827",
     letterSpacing: -0.3,
   },
-  categoryScrollView: {
+  categoryContent: {
     flex: 1,
-    backgroundColor: "#F9FAFB",
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 10,
+    gap: 7,
   },
-  categoryScrollContent: {
-    padding: 16,
-    paddingBottom: 32,
-  },
-  categoriesGrid: {
-    gap: 12,
-  },
-  categoryCard: {
-    backgroundColor: "#fff",
-    borderRadius: 20,
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 5,
-    borderWidth: 1,
-    borderColor: "#F3F4F6",
-  },
-  categoryCardPressed: {
-    transform: [{ scale: 0.96 }],
-    opacity: 0.9,
-  },
-  categoryCardInner: {
+  categoryListCard: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 22,
-    gap: 18,
+    backgroundColor: "#fff",
+    borderRadius: 11,
+    padding: 11,
+    gap: 11,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
   },
-  categoryIconContainer: {
-    width: 76,
-    height: 76,
-    borderRadius: 20,
+  categoryListIcon: {
+    width: 46,
+    height: 46,
+    borderRadius: 11,
     justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
   },
-  categoryTextContainer: {
+  categoryListText: {
     flex: 1,
   },
-  categoryName: {
-    fontSize: 19,
-    fontWeight: "800",
+  categoryListName: {
+    fontSize: 14.5,
+    fontWeight: "700",
     color: "#111827",
-    marginBottom: 6,
+    marginBottom: 3,
     letterSpacing: -0.2,
   },
-  categoryDescription: {
-    fontSize: 14,
+  categoryListDesc: {
+    fontSize: 11.5,
     color: "#6B7280",
-    lineHeight: 20,
     fontWeight: "500",
-  },
-  categoryArrowCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    justifyContent: "center",
-    alignItems: "center",
+    lineHeight: 15,
   },
   selectedCategoryBanner: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 14,
-    padding: 18,
-    borderRadius: 16,
-    marginBottom: 22,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-    elevation: 3,
+    gap: 10,
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 14,
   },
   selectedCategoryText: {
-    fontSize: 17,
-    fontWeight: "800",
+    fontSize: 15,
+    fontWeight: "700",
     letterSpacing: -0.2,
   },
 });
 
 export default CreatePost;
-
-

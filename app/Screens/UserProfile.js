@@ -1,16 +1,16 @@
-import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  Pressable,
-  Image,
-  RefreshControl,
-} from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
+import {
+    Image,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
+} from "react-native";
 import { BASE_URL } from "../../constants/config";
 
 const UserProfile = () => {
@@ -19,6 +19,7 @@ const UserProfile = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [userPosts, setUserPosts] = useState([]);
   const [currentUserMobile, setCurrentUserMobile] = useState(null);
+  const [userData, setUserData] = useState(null);
   const [stats, setStats] = useState({
     posts: 0,
     ecoPoints: 0,
@@ -28,12 +29,28 @@ const UserProfile = () => {
 
   useEffect(() => {
     loadCurrentUser();
+    loadUserData();
     loadUserPosts();
   }, []);
 
   const loadCurrentUser = async () => {
     const mobile = await AsyncStorage.getItem("mobile");
     setCurrentUserMobile(mobile);
+  };
+
+  const loadUserData = async () => {
+    try {
+      const response = await fetch(
+        `${BASE_URL}/user/by-identifier/${viewingMobile}`,
+      );
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        setUserData(result.user);
+      }
+    } catch (error) {
+      console.error("Error loading user data:", error);
+    }
   };
 
   const loadUserPosts = async () => {
@@ -60,12 +77,13 @@ const UserProfile = () => {
     const totalLikes = posts.reduce((sum, post) => sum + post.likesCount, 0);
     setStats({
       posts: posts.length,
-      ecoPoints: (posts.length * 100) + (totalLikes * 10),
+      ecoPoints: posts.length * 100 + totalLikes * 10,
     });
   };
 
   const onRefresh = async () => {
     setRefreshing(true);
+    await loadUserData();
     await loadUserPosts();
     setRefreshing(false);
   };
@@ -94,9 +112,13 @@ const UserProfile = () => {
             </View>
           </View>
 
-          <Text style={styles.userName}>Anonymous User</Text>
+          <Text style={styles.userName}>
+            {userData
+              ? `${userData.firstName} ${userData.lastName}`
+              : "Loading..."}
+          </Text>
           <Text style={styles.userBio}>
-            🌱 Making the world greener, one step at a time
+             Making the world greener, one step at a time
           </Text>
 
           {/* Stats Row */}
@@ -114,7 +136,7 @@ const UserProfile = () => {
             <Text style={styles.sectionTitle}>Posts</Text>
             <Text style={styles.postCount}>{userPosts.length} posts</Text>
           </View>
-          
+
           {userPosts.length > 0 ? (
             <View style={styles.postsGrid}>
               {userPosts.map((post) => (
@@ -311,5 +333,3 @@ const styles = StyleSheet.create({
 });
 
 export default UserProfile;
-
-

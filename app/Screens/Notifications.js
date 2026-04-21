@@ -4,7 +4,6 @@ import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   RefreshControl,
   StyleSheet,
@@ -107,54 +106,6 @@ export default function Notifications() {
     }
   };
 
-  const deleteNotification = async (notificationId) => {
-    try {
-      await fetch(`${BASE_URL}/notifications/${notificationId}`, {
-        method: "DELETE",
-        headers: {
-          "ngrok-skip-browser-warning": "true",
-        },
-      });
-
-      // Remove from local state
-      setNotifications((prev) =>
-        prev.filter((notif) => notif._id !== notificationId),
-      );
-    } catch (error) {
-      console.error("Error deleting notification:", error);
-    }
-  };
-
-  const clearAll = () => {
-    Alert.alert(
-      "Clear All Notifications",
-      "Are you sure you want to delete all notifications?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Clear All",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await fetch(
-                `${BASE_URL}/notifications/${userIdentifier}/clear-all`,
-                {
-                  method: "DELETE",
-                  headers: {
-                    "ngrok-skip-browser-warning": "true",
-                  },
-                },
-              );
-              setNotifications([]);
-            } catch (error) {
-              console.error("Error clearing notifications:", error);
-            }
-          },
-        },
-      ],
-    );
-  };
-
   const getNotificationIcon = (type) => {
     // All notifications use the same bell icon with neutral color
     return { name: "notifications-outline", color: "#666" };
@@ -182,8 +133,31 @@ export default function Notifications() {
             markAsRead(item._id);
           }
 
-          // Navigate to post detail if notification has postId
-          if (item.data && item.data.postId) {
+          // Navigate based on notification type
+          if (
+            item.type === "announcement" &&
+            item.data &&
+            item.data.announcementId
+          ) {
+            // For announcements, go to dedicated announcement detail page
+            router.push(
+              `/Screens/AnnouncementDetail?announcementId=${item.data.announcementId}`,
+            );
+          } else if (
+            item.type === "new_eco_location" &&
+            item.data &&
+            item.data.locationId
+          ) {
+            // For new eco-location notifications, navigate to Homepage with explore tab and location
+            router.push(
+              `/Dashboard/Homepage?tab=explore&locationId=${item.data.locationId}&latitude=${item.data.latitude}&longitude=${item.data.longitude}`,
+            );
+          } else if (
+            item.data &&
+            item.data.postId &&
+            item.type !== "post_deleted"
+          ) {
+            // For post-related notifications (except deleted posts)
             router.push(`/Screens/PostDetail?postId=${item.data.postId}`);
           }
         }}
@@ -194,20 +168,13 @@ export default function Notifications() {
 
         <View style={styles.contentContainer}>
           <Text style={styles.title}>
-            {item.title.replace(/[🎉❌❤️🏆]/g, "").trim()}
+            {item.title.replace(/[🎉❌❤️🏆📢]/g, "").trim()}
           </Text>
           <Text style={styles.message}>{item.message}</Text>
           <Text style={styles.time}>{formatTime(item.createdAt)}</Text>
         </View>
 
-        <TouchableOpacity
-          style={styles.deleteButton}
-          onPress={() => deleteNotification(item._id)}
-        >
-          <Ionicons name="close" size={18} color="#333" />
-        </TouchableOpacity>
-
-        {/* Removed unread dot */}
+        {!item.read && <View style={styles.unreadDot} />}
       </TouchableOpacity>
     );
   };
@@ -227,7 +194,7 @@ export default function Notifications() {
           style={styles.backButton}
           onPress={() => router.back()}
         >
-          <Ionicons name="arrow-back" size={24} color="#333" />
+          <Ionicons name="arrow-back" size={24} color="#333333ff" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Notifications</Text>
         <View style={styles.headerActions}>
@@ -237,11 +204,6 @@ export default function Notifications() {
               onPress={markAllAsRead}
             >
               <Text style={styles.headerButtonText}>Mark all read</Text>
-            </TouchableOpacity>
-          )}
-          {notifications.length > 0 && (
-            <TouchableOpacity style={styles.headerButton} onPress={clearAll}>
-              <Ionicons name="trash-outline" size={20} color="#F44336" />
             </TouchableOpacity>
           )}
         </View>
@@ -366,18 +328,13 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: "#999",
   },
-  deleteButton: {
-    padding: 4,
-    marginLeft: 8,
-  },
   unreadDot: {
-    position: "absolute",
-    top: 16,
-    right: 16,
     width: 10,
     height: 10,
     borderRadius: 5,
     backgroundColor: "#4CAF50",
+    marginLeft: 8,
+    alignSelf: "center",
   },
   emptyContainer: {
     flex: 1,
@@ -398,5 +355,3 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 });
-
-

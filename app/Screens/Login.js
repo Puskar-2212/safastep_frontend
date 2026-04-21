@@ -5,6 +5,7 @@ import React, { useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
+    Image,
     ImageBackground,
     KeyboardAvoidingView,
     Modal,
@@ -31,7 +32,11 @@ const SplashScreen = ({ onFinish }) => {
   return (
     <View style={styles.splashContainer}>
       <View style={styles.splashIconContainer}>
-        <MaterialIcons name="eco" size={80} color="#047857" />
+        <Image
+          source={require("../../assets/images/safastep_logo.png")}
+          style={styles.splashLogo}
+          resizeMode="contain"
+        />
       </View>
       <Text style={styles.splashTitle}>SafaStep</Text>
       <Text style={styles.splashSubtitle}>Every step reduces carbon</Text>
@@ -884,6 +889,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 24,
+  },
+  splashLogo: {
+    width: 100,
+    height: 100,
   },
   splashTitle: {
     fontSize: 42,
