@@ -7,6 +7,8 @@ import {
     Alert,
     Animated,
     Image,
+    Linking,
+    Modal,
     PanResponder,
     Pressable,
     RefreshControl,
@@ -16,6 +18,7 @@ import {
     View,
 } from "react-native";
 import * as Animatable from "react-native-animatable";
+import AnnouncementCard from "../../components/AnnouncementCard";
 import { BASE_URL } from "../../constants/config";
 import CO2CalculatorLanding from "../Screens/CO2CalculatorLanding";
 import CreatePost from "../Screens/CreatePost";
@@ -30,6 +33,7 @@ const Homepage = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [posts, setPosts] = useState([]);
+  const [announcements, setAnnouncements] = useState([]);
   const [activeTab, setActiveTab] = useState("home");
   const [showCreatePost, setShowCreatePost] = useState(false);
   const [showWelcomeBanner, setShowWelcomeBanner] = useState(false);
@@ -37,6 +41,13 @@ const Homepage = () => {
   const [showMenu, setShowMenu] = useState(false);
   const slideAnim = useRef(new Animated.Value(-280)).current;
   const [unreadCount, setUnreadCount] = useState(0);
+  const [selectedLocation, setSelectedLocation] = useState(null);
+  const [highlightedAnnouncementId, setHighlightedAnnouncementId] =
+    useState(null);
+  const announcementRefs = useRef({});
+  const scrollViewRef = useRef(null);
+  const [shareModalVisible, setShareModalVisible] = useState(false);
+  const [selectedPost, setSelectedPost] = useState(null);
 
   // Pan responder for swipe gestures
   const panResponder = useRef(
@@ -89,8 +100,21 @@ const Homepage = () => {
   useEffect(() => {
     loadUserData();
     loadPosts();
+    loadAnnouncements();
     checkIfFirstTime();
     fetchUnreadCount();
+
+    // Check if we need to highlight a specific announcement
+    if (params.announcementId) {
+      setHighlightedAnnouncementId(params.announcementId);
+      setActiveTab("home"); // Make sure we're on home tab
+    }
+
+    // Check if we need to navigate to explore tab with a location
+    if (params.tab === "explore") {
+      setActiveTab("explore");
+      // Don't set selectedLocation - let ExploreMap handle it via params
+    }
 
     // Auto-refresh notifications every 30 seconds
     const notificationInterval = setInterval(() => {
@@ -203,6 +227,44 @@ const Homepage = () => {
     }
   };
 
+  const loadAnnouncements = async () => {
+    try {
+      const response = await fetch(`${BASE_URL}/posts/announcements?limit=20`);
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        setAnnouncements(result.announcements);
+
+        // If we have a highlighted announcement, scroll to it after a short delay
+        if (highlightedAnnouncementId) {
+          setTimeout(() => {
+            scrollToAnnouncement(highlightedAnnouncementId);
+          }, 500);
+        }
+      }
+    } catch (error) {
+      console.error("Error loading announcements:", error);
+      setAnnouncements([]);
+    }
+  };
+
+  const scrollToAnnouncement = (announcementId) => {
+    const ref = announcementRefs.current[announcementId];
+    if (ref && scrollViewRef.current) {
+      ref.measureLayout(
+        scrollViewRef.current,
+        (x, y) => {
+          scrollViewRef.current.scrollTo({ y: y - 20, animated: true });
+          // Clear highlight after 3 seconds
+          setTimeout(() => {
+            setHighlightedAnnouncementId(null);
+          }, 3000);
+        },
+        () => console.log("Failed to measure announcement position"),
+      );
+    }
+  };
+
   // Helper function to calculate time ago
   const getTimeAgo = (timestamp) => {
     const seconds = Math.floor(Date.now() / 1000 - timestamp);
@@ -241,6 +303,7 @@ const Homepage = () => {
     setRefreshing(true);
     loadUserData();
     loadPosts();
+    loadAnnouncements();
     fetchUnreadCount(); // Also refresh notification count
   };
 
@@ -302,6 +365,94 @@ const Homepage = () => {
     }
   };
 
+  const handleShare = (post) => {
+    setSelectedPost(post);
+    setShareModalVisible(true);
+  };
+
+  const shareToWhatsApp = async () => {
+    if (!selectedPost) return;
+
+    const imageUrl = selectedPost.image.uri;
+    const message = `Check out this eco-action on SafaStep! 🌱\n\n${selectedPost.user.name} saved ${selectedPost.impact.co2} by ${selectedPost.impact.category}.\n\n"${selectedPost.caption}"\n\n${imageUrl}\n\nJoin SafaStep and track your environmental impact!`;
+
+    const url = `whatsapp://send?text=${encodeURIComponent(message)}`;
+
+    try {
+      const supported = await Linking.canOpenURL(url);
+      if (supported) {
+        await Linking.openURL(url);
+        setShareModalVisible(false);
+      } else {
+        Alert.alert("Error", "WhatsApp is not installed on your device");
+      }
+    } catch (error) {
+      console.error("Error sharing to WhatsApp:", error);
+      Alert.alert("Error", "Failed to share to WhatsApp");
+    }
+  };
+
+  const shareToFacebook = async () => {
+    if (!selectedPost) return;
+
+    const imageUrl = selectedPost.image.uri;
+    const message = `Check out this eco-action on SafaStep! 🌱\n\n${selectedPost.user.name} saved ${selectedPost.impact.co2} by ${selectedPost.impact.category}.\n\n"${selectedPost.caption}"\n\n${imageUrl}\n\nJoin SafaStep and track your environmental impact!`;
+
+    // Try Facebook Messenger with text message
+    const messengerUrl = `fb-messenger://share?text=${encodeURIComponent(message)}`;
+
+    try {
+      const messengerSupported = await Linking.canOpenURL(messengerUrl);
+      if (messengerSupported) {
+        await Linking.openURL(messengerUrl);
+        setShareModalVisible(false);
+      } else {
+        // If Messenger not installed, show alert with options
+        Alert.alert(
+          "Share to Facebook",
+          "Facebook Messenger is not installed. Would you like to copy the message and open Facebook?",
+          [
+            {
+              text: "Cancel",
+              style: "cancel",
+              onPress: () => setShareModalVisible(false),
+            },
+            {
+              text: "Copy & Open Facebook",
+              onPress: async () => {
+                try {
+                  // Try to open Facebook app
+                  const fbUrl = "fb://page";
+                  const fbSupported = await Linking.canOpenURL(fbUrl);
+
+                  if (fbSupported) {
+                    await Linking.openURL(fbUrl);
+                  } else {
+                    // Open Facebook website
+                    await Linking.openURL("https://www.facebook.com");
+                  }
+
+                  Alert.alert(
+                    "Message Copied!",
+                    "The message has been copied. You can paste it in Facebook Messenger or as a post.",
+                  );
+                  setShareModalVisible(false);
+                } catch (error) {
+                  console.error("Error opening Facebook:", error);
+                  Alert.alert("Error", "Failed to open Facebook");
+                  setShareModalVisible(false);
+                }
+              },
+            },
+          ],
+        );
+      }
+    } catch (error) {
+      console.error("Error sharing to Facebook:", error);
+      Alert.alert("Error", "Failed to share to Facebook");
+    }
+  };
+
   const handleDeletePost = (postId, postOwner) => {
     Alert.alert("Delete Post", "Are you sure you want to delete this post?", [
       { text: "Cancel", style: "cancel" },
@@ -346,6 +497,40 @@ const Homepage = () => {
     ]);
   };
 
+  const handleLogout = async () => {
+    Alert.alert("Logout", "Are you sure you want to logout?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Logout",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await AsyncStorage.removeItem("mobile");
+            await AsyncStorage.removeItem("email");
+            await AsyncStorage.removeItem("hasLoggedInBefore");
+            router.replace("/Screens/Login");
+          } catch (error) {
+            console.error("Error logging out:", error);
+            Alert.alert("Error", "Failed to logout");
+          }
+        },
+      },
+    ]);
+  };
+
+  const handlePostCreated = () => {
+    setShowCreatePost(false);
+    loadPosts(); // Reload posts to show the new one
+    loadUserData(); // Reload user data to update eco points
+  };
+
+  const handleViewLocation = (location) => {
+    console.log("handleViewLocation called with:", location);
+    // Store the selected location and switch to explore tab
+    setSelectedLocation(location);
+    setActiveTab("explore");
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -366,12 +551,22 @@ const Homepage = () => {
     }
 
     if (activeTab === "explore") {
-      return <ExploreMap />;
+      console.log(
+        "Rendering ExploreMap with selectedLocation:",
+        selectedLocation,
+      );
+      return (
+        <ExploreMap
+          selectedLocation={selectedLocation}
+          onLocationViewed={() => setSelectedLocation(null)}
+        />
+      );
     }
 
     // Default Home Feed
     return (
       <ScrollView
+        ref={scrollViewRef}
         style={styles.feed}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -403,185 +598,181 @@ const Homepage = () => {
 
         {/* Posts Grid */}
         <View style={styles.postsContainer}>
-          {posts.map((post, index) => (
-            <Animatable.View
-              key={post.id}
-              animation="fadeInUp"
-              duration={600}
-              delay={index * 100}
-              style={styles.ecoCard}
+          {/* Announcements */}
+          {announcements.map((announcement) => (
+            <View
+              key={announcement._id}
+              ref={(ref) => (announcementRefs.current[announcement._id] = ref)}
+              collapsable={false}
             >
-              {/* Image with Overlay */}
-              <View style={styles.imageContainer}>
-                <Image
-                  source={post.image}
-                  style={styles.cardImage}
-                  resizeMode="cover"
-                />
-                <View style={styles.imageOverlay}>
-                  <Pressable
-                    style={styles.userBadge}
-                    onPress={() => {
-                      const currentUserIdentifier =
-                        userData?.mobile || userData?.email;
-                      const postOwnerIdentifier =
-                        post.identifier || post.mobile || post.email;
+              <AnnouncementCard
+                announcement={announcement}
+                onViewLocation={handleViewLocation}
+                isHighlighted={highlightedAnnouncementId === announcement._id}
+              />
+            </View>
+          ))}
 
-                      if (currentUserIdentifier !== postOwnerIdentifier) {
-                        // Navigate to other user's profile
+          {/* User Posts */}
+          {posts.map((post, index) => {
+            const currentUserIdentifier = userData?.mobile || userData?.email;
+            const postOwnerIdentifier =
+              post.identifier || post.mobile || post.email;
+            const isOwnPost = currentUserIdentifier === postOwnerIdentifier;
+
+            return (
+              <Animatable.View
+                key={post.id}
+                animation="fadeInUp"
+                duration={600}
+                delay={index * 100}
+                style={styles.linkedInCard}
+              >
+                {/* User Header */}
+                <View style={styles.linkedInHeader}>
+                  <Pressable
+                    style={styles.linkedInHeaderContent}
+                    onPress={() => {
+                      if (!isOwnPost) {
                         router.push(
                           `/Screens/UserProfile?mobile=${encodeURIComponent(postOwnerIdentifier)}`,
                         );
                       }
                     }}
                   >
-                    <View style={styles.smallAvatar}>
-                      <MaterialIcons name="person" size={16} color="#fff" />
+                    <View style={styles.linkedInAvatar}>
+                      <MaterialIcons name="person" size={24} color="#fff" />
                     </View>
-                    <Text style={styles.overlayUserName}>
-                      {(() => {
-                        // Get current user's identifier
-                        const currentUserIdentifier =
-                          userData?.mobile || userData?.email;
-                        // Get post owner's identifier
-                        const postOwnerIdentifier =
-                          post.identifier || post.mobile || post.email;
-                        // Check if current user is the post owner
-                        const isOwnPost =
-                          currentUserIdentifier === postOwnerIdentifier;
-
-                        return isOwnPost ? "You" : "Anonymous User";
-                      })()}
-                    </Text>
-                    {(() => {
-                      const currentUserIdentifier =
-                        userData?.mobile || userData?.email;
-                      const postOwnerIdentifier =
-                        post.identifier || post.mobile || post.email;
-                      return currentUserIdentifier !== postOwnerIdentifier;
-                    })() && (
-                      <MaterialIcons
-                        name="chevron-right"
-                        size={16}
-                        color="#fff"
-                      />
-                    )}
+                    <View style={styles.linkedInAuthorInfo}>
+                      <Text style={styles.linkedInAuthorName}>
+                        {isOwnPost ? "You" : post.user.name}
+                      </Text>
+                      <Text style={styles.linkedInPostTime}>
+                        {post.timeAgo}
+                      </Text>
+                    </View>
                   </Pressable>
+
+                  {/* Delete button - only show for user's own posts */}
+                  {isOwnPost && (
+                    <Pressable
+                      style={styles.linkedInDeleteButton}
+                      onPress={() =>
+                        handleDeletePost(post.id, postOwnerIdentifier)
+                      }
+                    >
+                      <Ionicons
+                        name="trash-outline"
+                        size={20}
+                        color="#EF4444"
+                      />
+                    </Pressable>
+                  )}
                 </View>
-              </View>
 
-              {/* Delete button - only show for user's own posts */}
-              {(() => {
-                const currentUserIdentifier =
-                  userData?.mobile || userData?.email;
-                const postOwnerIdentifier =
-                  post.identifier || post.mobile || post.email;
-                return currentUserIdentifier === postOwnerIdentifier;
-              })() && (
-                <Pressable
-                  style={styles.deletePostButton}
-                  onPress={() =>
-                    handleDeletePost(
-                      post.id,
-                      post.identifier || post.mobile || post.email,
-                    )
-                  }
-                >
-                  <Ionicons name="trash-outline" size={24} color="#EF4444" />
-                </Pressable>
-              )}
-
-              {/* Card Content */}
-              <View style={styles.cardContent}>
-                <Text style={styles.cardTitle} numberOfLines={2}>
+                {/* Caption */}
+                <Text style={styles.linkedInCaption} numberOfLines={3}>
                   {post.caption}
                 </Text>
 
-                {/* Category Badge - below caption */}
-                <View style={styles.categoryBadge}>
-                  <MaterialIcons
-                    name={
-                      post.impact.category === "Transportation"
-                        ? "directions-bus"
-                        : post.impact.category === "Plantation"
-                          ? "park"
-                          : post.impact.category === "Recycling"
-                            ? "recycling"
-                            : post.impact.category === "Waste Management"
-                              ? "delete-outline"
-                              : post.impact.category === "Energy Conservation"
-                                ? "bolt"
-                                : "eco"
-                    }
-                    size={16}
-                    color={
-                      post.impact.category === "Transportation"
-                        ? "#3B82F6"
-                        : post.impact.category === "Plantation"
-                          ? "#047857"
-                          : post.impact.category === "Recycling"
-                            ? "#8B5CF6"
-                            : post.impact.category === "Waste Management"
-                              ? "#F59E0B"
-                              : post.impact.category === "Energy Conservation"
-                                ? "#EF4444"
-                                : "#047857"
-                    }
-                  />
-                  <Text
-                    style={[
-                      styles.categoryText,
-                      {
-                        color:
-                          post.impact.category === "Transportation"
-                            ? "#3B82F6"
-                            : post.impact.category === "Plantation"
-                              ? "#047857"
-                              : post.impact.category === "Recycling"
-                                ? "#8B5CF6"
-                                : post.impact.category === "Waste Management"
-                                  ? "#F59E0B"
-                                  : post.impact.category ===
-                                      "Energy Conservation"
-                                    ? "#EF4444"
-                                    : "#047857",
-                      },
-                    ]}
-                  >
-                    {post.impact.category}
-                  </Text>
+                {/* Image */}
+                <Image
+                  source={post.image}
+                  style={styles.linkedInImage}
+                  resizeMode="cover"
+                />
+
+                {/* Category Badge */}
+                <View style={styles.linkedInCategoryContainer}>
+                  <View style={styles.linkedInCategoryBadge}>
+                    <MaterialIcons
+                      name={
+                        post.impact.category === "Transportation"
+                          ? "directions-bus"
+                          : post.impact.category === "Plantation"
+                            ? "park"
+                            : post.impact.category === "Recycling"
+                              ? "recycling"
+                              : post.impact.category === "Waste Management"
+                                ? "delete-outline"
+                                : post.impact.category === "Energy Conservation"
+                                  ? "bolt"
+                                  : "eco"
+                      }
+                      size={16}
+                      color={
+                        post.impact.category === "Transportation"
+                          ? "#3B82F6"
+                          : post.impact.category === "Plantation"
+                            ? "#047857"
+                            : post.impact.category === "Recycling"
+                              ? "#8B5CF6"
+                              : post.impact.category === "Waste Management"
+                                ? "#F59E0B"
+                                : post.impact.category === "Energy Conservation"
+                                  ? "#EF4444"
+                                  : "#047857"
+                      }
+                    />
+                    <Text
+                      style={[
+                        styles.linkedInCategoryText,
+                        {
+                          color:
+                            post.impact.category === "Transportation"
+                              ? "#3B82F6"
+                              : post.impact.category === "Plantation"
+                                ? "#047857"
+                                : post.impact.category === "Recycling"
+                                  ? "#8B5CF6"
+                                  : post.impact.category === "Waste Management"
+                                    ? "#F59E0B"
+                                    : post.impact.category ===
+                                        "Energy Conservation"
+                                      ? "#EF4444"
+                                      : "#047857",
+                        },
+                      ]}
+                    >
+                      {post.impact.category}
+                    </Text>
+                  </View>
                 </View>
 
                 {/* Impact Stats */}
-                <View style={styles.impactContainer}>
-                  <View style={styles.impactBadge}>
+                <View style={styles.linkedInImpactContainer}>
+                  <View style={styles.linkedInImpactBadge}>
                     <MaterialIcons name="cloud" size={18} color="#047857" />
-                    <Text style={styles.impactText}>{post.impact.co2} CO₂</Text>
+                    <Text style={styles.linkedInImpactText}>
+                      {post.impact.co2} CO₂
+                    </Text>
                   </View>
                   {post.impact.trees && (
-                    <View style={styles.impactBadge}>
+                    <View style={styles.linkedInImpactBadge}>
                       <MaterialIcons name="park" size={18} color="#047857" />
-                      <Text style={styles.impactText}>
+                      <Text style={styles.linkedInImpactText}>
                         {post.impact.trees} trees
                       </Text>
                     </View>
                   )}
                   {post.impact.waste && (
-                    <View style={styles.impactBadge}>
+                    <View style={styles.linkedInImpactBadge}>
                       <MaterialIcons
                         name="delete-outline"
                         size={18}
                         color="#F59E0B"
                       />
-                      <Text style={styles.impactText}>{post.impact.waste}</Text>
+                      <Text style={styles.linkedInImpactText}>
+                        {post.impact.waste}
+                      </Text>
                     </View>
                   )}
                 </View>
 
                 {/* Actions Row */}
-                <View style={styles.cardActions}>
+                <View style={styles.linkedInActions}>
                   <Pressable
-                    style={styles.cardActionButton}
+                    style={styles.linkedInActionButton}
                     onPress={() => handleLike(post.id)}
                   >
                     <MaterialIcons
@@ -591,35 +782,34 @@ const Homepage = () => {
                     />
                     <Text
                       style={[
-                        styles.actionText,
-                        post.liked && styles.actionTextLiked,
+                        styles.linkedInActionText,
+                        post.liked && styles.linkedInActionTextLiked,
                       ]}
                     >
                       {post.likes}
                     </Text>
                   </Pressable>
 
-                  <Pressable style={styles.cardActionButton}>
+                  <Pressable
+                    style={styles.linkedInActionButton}
+                    onPress={() => handleShare(post)}
+                  >
                     <MaterialIcons name="share" size={20} color="#64748B" />
+                    <Text style={styles.linkedInActionText}>Share</Text>
                   </Pressable>
-
-                  <View style={styles.timeContainer}>
-                    <MaterialIcons
-                      name="access-time"
-                      size={14}
-                      color="#94A3B8"
-                    />
-                    <Text style={styles.timeText}>{post.timeAgo}</Text>
-                  </View>
                 </View>
-              </View>
-            </Animatable.View>
-          ))}
+              </Animatable.View>
+            );
+          })}
         </View>
 
         <View style={styles.feedEnd}>
           <View style={styles.feedEndIcon}>
-            <MaterialIcons name="eco" size={48} color="#047857" />
+            <Image
+              source={require("../../assets/images/safastep_logo.png")}
+              style={styles.feedEndLogoImage}
+              resizeMode="contain"
+            />
           </View>
           <Text style={styles.feedEndText}>You're all caught up!</Text>
           <Text style={styles.feedEndSubtext}>
@@ -793,13 +983,6 @@ const Homepage = () => {
         </Pressable>
       </View>
 
-      {/* Create Post Component */}
-      <CreatePost
-        visible={showCreatePost}
-        onClose={() => setShowCreatePost(false)}
-        onPostCreated={loadPosts}
-      />
-
       {/* Edge Swipe Detector - for opening menu */}
       {!showMenu && (
         <View {...panResponder.panHandlers} style={styles.edgeSwipeDetector} />
@@ -914,42 +1097,83 @@ const Homepage = () => {
             <Pressable
               style={styles.menuItem}
               onPress={() => {
+                router.push("/Screens/Settings");
                 setTimeout(() => closeMenu(), 100);
-                // Add settings navigation
               }}
             >
               <MaterialIcons name="settings" size={24} color="#6b7280" />
               <Text style={styles.menuItemText}>Settings</Text>
             </Pressable>
-
-            <Pressable
-              style={styles.menuItem}
-              onPress={() => {
-                setTimeout(() => closeMenu(), 100);
-                // Add help navigation
-              }}
-            >
-              <MaterialIcons name="help-outline" size={24} color="#6b7280" />
-              <Text style={styles.menuItemText}>Help & FAQ</Text>
-            </Pressable>
           </View>
 
           {/* Logout Button */}
           <View style={styles.menuFooter}>
-            <Pressable
-              style={styles.menuLogoutButton}
-              onPress={async () => {
-                await AsyncStorage.clear();
-                router.push("/Screens/Login");
-                setTimeout(() => closeMenu(), 100);
-              }}
-            >
-              <MaterialIcons name="logout" size={24} color="#6b7280" />
-              <Text style={styles.menuLogoutText}>Log out</Text>
+            <Pressable style={styles.logoutButton} onPress={handleLogout}>
+              <MaterialIcons name="logout" size={24} color="#EF4444" />
+              <Text style={styles.logoutText}>Logout</Text>
             </Pressable>
           </View>
         </View>
       </Animated.View>
+
+      {/* Create Post Modal */}
+      {showCreatePost && (
+        <CreatePost
+          onClose={() => setShowCreatePost(false)}
+          onPostCreated={handlePostCreated}
+        />
+      )}
+
+      {/* Share Modal */}
+      <Modal
+        visible={shareModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShareModalVisible(false)}
+      >
+        <Pressable
+          style={styles.shareModalOverlay}
+          onPress={() => setShareModalVisible(false)}
+        >
+          <Pressable
+            style={styles.shareModalContent}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <Text style={styles.shareModalTitle}>Share Eco-Action</Text>
+
+            <Pressable style={styles.shareOption} onPress={shareToWhatsApp}>
+              <View
+                style={[
+                  styles.shareIconContainer,
+                  { backgroundColor: "#25D366" },
+                ]}
+              >
+                <MaterialIcons name="chat" size={24} color="#fff" />
+              </View>
+              <Text style={styles.shareOptionText}>WhatsApp</Text>
+            </Pressable>
+
+            <Pressable style={styles.shareOption} onPress={shareToFacebook}>
+              <View
+                style={[
+                  styles.shareIconContainer,
+                  { backgroundColor: "#1877F2" },
+                ]}
+              >
+                <MaterialIcons name="facebook" size={24} color="#fff" />
+              </View>
+              <Text style={styles.shareOptionText}>Facebook</Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.shareCancelButton}
+              onPress={() => setShareModalVisible(false)}
+            >
+              <Text style={styles.shareCancelText}>Cancel</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 };
@@ -957,255 +1181,98 @@ const Homepage = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
+    backgroundColor: "#F9FAFB",
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#FAFBFC",
+    backgroundColor: "#F9FAFB",
   },
   loadingText: {
-    marginTop: 16,
+    marginTop: 12,
     fontSize: 16,
-    color: "#64748B",
+    color: "#6b7280",
   },
   header: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    paddingTop: 50,
-    paddingBottom: 18,
-    paddingHorizontal: 20,
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingTop: 48,
+    paddingBottom: 16,
     backgroundColor: "#fff",
-    shadowColor: "#047857",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E5E7EB",
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: "800",
     color: "#047857",
-    letterSpacing: -0.5,
+    letterSpacing: 0.5,
   },
   headerIcons: {
     flexDirection: "row",
-    gap: 12,
+    gap: 8,
   },
   headerIcon: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "#E6F4F1",
     justifyContent: "center",
     alignItems: "center",
   },
+  notificationBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    backgroundColor: "#F44336",
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 4,
+  },
+  notificationBadgeText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "bold",
+  },
   feed: {
     flex: 1,
-    backgroundColor: "#FAFBFC",
+    backgroundColor: "#F9FAFB",
   },
   welcomeBanner: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
     backgroundColor: "#047857",
     marginHorizontal: 16,
     marginTop: 16,
-    marginBottom: 20,
-    padding: 24,
-    borderRadius: 24,
-    shadowColor: "#047857",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 8,
+    marginBottom: 12,
+    padding: 20,
+    borderRadius: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   bannerContent: {
     flex: 1,
   },
   bannerTitle: {
-    fontSize: 22,
-    fontWeight: "800",
+    fontSize: 20,
+    fontWeight: "700",
     color: "#fff",
-    marginBottom: 6,
-    letterSpacing: -0.3,
+    marginBottom: 4,
   },
   bannerSubtitle: {
-    fontSize: 15,
-    color: "#B8E6D5",
-    fontWeight: "500",
+    fontSize: 14,
+    color: "#E6F4F1",
   },
   bannerIcon: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    justifyContent: "center",
-    alignItems: "center",
+    marginLeft: 12,
   },
   postsContainer: {
     paddingHorizontal: 16,
-    gap: 16,
-  },
-  ecoCard: {
-    backgroundColor: "#fff",
-    borderRadius: 24,
-    marginBottom: 20,
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.1,
-    shadowRadius: 16,
-    elevation: 8,
-    borderWidth: 1,
-    borderColor: "#F3F4F6",
-  },
-  captionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 10,
-    gap: 12,
-  },
-  cardTitle: {
-    flex: 1,
-    fontSize: 19,
-    fontWeight: "800",
-    color: "#111827",
-    letterSpacing: -0.3,
-  },
-  categoryBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    flexShrink: 0,
-  },
-  categoryText: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  deletePostButton: {
-    position: "absolute",
-    top: 16,
-    right: 16,
-    padding: 8,
-    zIndex: 10,
-  },
-  imageContainer: {
-    position: "relative",
-    width: "100%",
-    height: 280,
-  },
-  cardImage: {
-    width: "100%",
-    height: "100%",
-    backgroundColor: "#F3F4F6",
-  },
-  imageOverlay: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    padding: 16,
-    background: "linear-gradient(transparent, rgba(0,0,0,0.6))",
-  },
-  userBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    alignSelf: "flex-start",
-  },
-  smallAvatar: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: "#047857",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  overlayUserName: {
-    fontSize: 13,
-    fontWeight: "600",
-    color: "#fff",
-  },
-  cardContent: {
-    padding: 20,
-  },
-  cardTitle: {
-    fontSize: 19,
-    fontWeight: "800",
-    color: "#111827",
-    marginBottom: 12,
-    letterSpacing: -0.3,
-  },
-  categoryBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginBottom: 16,
-  },
-  categoryText: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  impactContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginBottom: 16,
-  },
-  impactBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    backgroundColor: "#E6F4F1",
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: "#B8E6D5",
-  },
-  impactText: {
-    fontSize: 13,
-    fontWeight: "700",
-    color: "#4F46E5",
-  },
-  cardActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: "#F3F4F6",
-  },
-  cardActionButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  actionText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#64748B",
-  },
-  actionTextLiked: {
-    color: "#F43F5E",
-  },
-  timeContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginLeft: "auto",
-  },
-  timeText: {
-    fontSize: 12,
-    color: "#94A3B8",
+    paddingTop: 8,
   },
   feedEnd: {
     alignItems: "center",
@@ -1221,6 +1288,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 16,
+    overflow: "hidden",
+  },
+  feedEndLogoImage: {
+    width: 60,
+    height: 60,
   },
   feedEndText: {
     fontSize: 18,
@@ -1232,6 +1304,129 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#64748B",
     textAlign: "center",
+  },
+  // LinkedIn-style card styles
+  linkedInCard: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    overflow: "hidden",
+  },
+  linkedInHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 16,
+    paddingBottom: 12,
+  },
+  linkedInHeaderContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  linkedInAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#047857",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 10,
+  },
+  linkedInAuthorInfo: {
+    flex: 1,
+  },
+  linkedInAuthorName: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#1f2937",
+    marginBottom: 2,
+  },
+  linkedInPostTime: {
+    fontSize: 13,
+    color: "#6b7280",
+  },
+  linkedInDeleteButton: {
+    padding: 8,
+  },
+  linkedInCaption: {
+    fontSize: 15,
+    color: "#4b5563",
+    lineHeight: 22,
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  },
+  linkedInImage: {
+    width: "100%",
+    height: 220,
+    marginBottom: 12,
+  },
+  linkedInCategoryContainer: {
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  },
+  linkedInCategoryBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: "#f9fafb",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+  },
+  linkedInCategoryText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  linkedInImpactContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  },
+  linkedInImpactBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#f0fdf4",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#bbf7d0",
+  },
+  linkedInImpactText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#047857",
+  },
+  linkedInActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: "#f3f4f6",
+  },
+  linkedInActionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  linkedInActionText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#64748B",
+  },
+  linkedInActionTextLiked: {
+    color: "#F43F5E",
   },
   bottomNav: {
     flexDirection: "row",
@@ -1252,9 +1447,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 6,
     gap: 6,
-  },
-  navItemActive: {
-    transform: [{ scale: 1.05 }],
   },
   navIconContainer: {
     width: 48,
@@ -1295,123 +1487,167 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: "#E6F4F1",
     justifyContent: "center",
     alignItems: "center",
   },
   menuOverlay: {
     position: "absolute",
     top: 0,
-    left: 296,
+    left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: "transparent",
-    zIndex: 1000,
-  },
-  menuOverlayTouchable: {
-    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    zIndex: 999,
   },
   sideMenuContainer: {
     position: "absolute",
-    left: 16,
-    top: 16,
-    bottom: 16,
-    width: "65%",
-    maxWidth: 280,
-    overflow: "hidden",
-    borderRadius: 32,
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 280,
+    zIndex: 1000,
   },
   sideMenu: {
     flex: 1,
-    backgroundColor: "rgba(255, 255, 255, 0.98)",
-    borderRadius: 32,
-    borderWidth: 1,
-    borderColor: "rgba(226, 232, 240, 0.8)",
-    shadowColor: "#047857",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.15,
-    shadowRadius: 24,
+    backgroundColor: "#fff",
+    borderTopRightRadius: 24,
+    borderBottomRightRadius: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
     elevation: 10,
-    paddingVertical: 32,
+    overflow: "hidden",
+    marginTop: 16,
+    marginBottom: 16,
   },
   menuProfileSection: {
-    alignItems: "center",
-    paddingHorizontal: 24,
-    paddingBottom: 24,
+    padding: 24,
+    paddingTop: 32,
+    backgroundColor: "#f0fdf4",
     borderBottomWidth: 1,
-    borderBottomColor: "rgba(243, 244, 246, 0.5)",
+    borderBottomColor: "#e5e7eb",
+    alignItems: "center",
   },
   menuAvatar: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: "rgba(238, 242, 255, 0.8)",
+    backgroundColor: "#fff",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 16,
-    borderWidth: 2,
-    borderColor: "rgba(255, 255, 255, 0.5)",
+    marginBottom: 12,
+    borderWidth: 3,
+    borderColor: "#047857",
   },
   menuProfileName: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "700",
-    color: "#111827",
+    color: "#1f2937",
     marginBottom: 4,
   },
   menuProfileLink: {
     fontSize: 14,
-    color: "#9ca3af",
-    fontWeight: "500",
+    color: "#047857",
+    fontWeight: "600",
   },
   menuItems: {
-    paddingTop: 16,
-    paddingHorizontal: 24,
     flex: 1,
+    paddingVertical: 16,
   },
   menuItem: {
     flexDirection: "row",
     alignItems: "center",
+    paddingHorizontal: 24,
     paddingVertical: 16,
     gap: 16,
   },
   menuItemText: {
     fontSize: 16,
+    color: "#1f2937",
     fontWeight: "500",
-    color: "#4b5563",
   },
   menuFooter: {
-    paddingHorizontal: 24,
-    paddingTop: 16,
+    padding: 16,
     borderTopWidth: 1,
-    borderTopColor: "rgba(243, 244, 246, 0.5)",
+    borderTopColor: "#e5e7eb",
   },
-  menuLogoutButton: {
+  logoutButton: {
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: 16,
-    gap: 16,
+    justifyContent: "center",
+    gap: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    backgroundColor: "#fef2f2",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#fecaca",
   },
-  menuLogoutText: {
+  logoutText: {
     fontSize: 16,
-    fontWeight: "500",
-    color: "#6b7280",
+    fontWeight: "600",
+    color: "#EF4444",
   },
-  notificationBadge: {
+  edgeSwipeDetector: {
     position: "absolute",
-    top: -4,
-    right: -4,
-    backgroundColor: "#F44336",
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 20,
+    zIndex: 998,
+  },
+  shareModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  shareModalContent: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    paddingBottom: 30,
+  },
+  shareModalTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#111827",
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  shareOption: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    backgroundColor: "#F9FAFB",
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  shareIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: "center",
     alignItems: "center",
-    paddingHorizontal: 4,
+    marginRight: 16,
   },
-  notificationBadgeText: {
-    color: "#fff",
-    fontSize: 11,
-    fontWeight: "bold",
+  shareOptionText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#111827",
+  },
+  shareCancelButton: {
+    padding: 16,
+    backgroundColor: "#F3F4F6",
+    borderRadius: 12,
+    marginTop: 8,
+  },
+  shareCancelText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#6B7280",
+    textAlign: "center",
   },
 });
 

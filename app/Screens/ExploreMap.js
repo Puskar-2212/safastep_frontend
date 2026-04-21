@@ -1,29 +1,34 @@
-import { MaterialIcons } from '@expo/vector-icons';
-import * as Location from 'expo-location';
-import React, { useEffect, useRef, useState } from 'react';
+import { MaterialIcons } from "@expo/vector-icons";
+import * as Location from "expo-location";
+import { useLocalSearchParams } from "expo-router";
+import React, { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Linking,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { WebView } from 'react-native-webview';
-import { BASE_URL } from '../../constants/config';
+    ActivityIndicator,
+    Alert,
+    Linking,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { WebView } from "react-native-webview";
+import { BASE_URL } from "../../constants/config";
 
-const ExploreMap = () => {
+const ExploreMap = ({
+  selectedLocation: initialSelectedLocation,
+  onLocationViewed,
+}) => {
   const insets = useSafeAreaInsets();
+  const params = useLocalSearchParams();
   const [locations, setLocations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [userLocation, setUserLocation] = useState(null);
   const [selectedLocation, setSelectedLocation] = useState(null);
-  const [activeFilter, setActiveFilter] = useState('all');
-  const [mapType, setMapType] = useState('standard'); // 'standard', 'satellite', or 'hybrid'
+  const [activeFilter, setActiveFilter] = useState("all");
+  const [mapType, setMapType] = useState("standard"); // 'standard', 'satellite', or 'hybrid'
   const [showRoute, setShowRoute] = useState(false);
   const [routeInfo, setRouteInfo] = useState(null);
   const [isTracking, setIsTracking] = useState(false);
@@ -31,18 +36,125 @@ const ExploreMap = () => {
   const locationSubscription = useRef(null);
 
   const categories = [
-    { id: 'all', label: 'All', icon: 'apps', color: '#047857' },
-    { id: 'plantation_event', label: 'Events', icon: 'park', color: '#047857' },
-    { id: 'recycling_center', label: 'Recycle', icon: 'recycling', color: '#06B6D4' },
-    { id: 'eco_store', label: 'Stores', icon: 'store', color: '#F59E0B' },
-    { id: 'ngo_office', label: 'NGOs', icon: 'volunteer-activism', color: '#8B5CF6' },
-    { id: 'community_garden', label: 'Gardens', icon: 'yard', color: '#84CC16' },
+    { id: "all", label: "All", icon: "apps", color: "#047857" },
+    { id: "plantation_event", label: "Events", icon: "park", color: "#047857" },
+    {
+      id: "recycling_center",
+      label: "Recycle",
+      icon: "recycling",
+      color: "#06B6D4",
+    },
+    { id: "eco_store", label: "Stores", icon: "store", color: "#F59E0B" },
+    {
+      id: "ngo_office",
+      label: "NGOs",
+      icon: "volunteer-activism",
+      color: "#8B5CF6",
+    },
+    {
+      id: "community_garden",
+      label: "Gardens",
+      icon: "yard",
+      color: "#84CC16",
+    },
   ];
+
+  // Handle incoming selected location from announcement
+  useEffect(() => {
+    if (initialSelectedLocation) {
+      // Find the full location data from the locations array
+      const fullLocation = locations.find(
+        (loc) =>
+          loc._id === initialSelectedLocation.id ||
+          loc.name === initialSelectedLocation.name,
+      );
+
+      if (fullLocation) {
+        setSelectedLocation(fullLocation);
+        // Center map on this location
+        if (webViewRef.current) {
+          webViewRef.current.postMessage(
+            JSON.stringify({
+              type: "centerOnLocation",
+              location: {
+                latitude: fullLocation.latitude,
+                longitude: fullLocation.longitude,
+              },
+            }),
+          );
+        }
+      } else {
+        // If location not in array yet, create a temporary one from announcement data
+        setSelectedLocation({
+          _id: initialSelectedLocation.id,
+          name: initialSelectedLocation.name,
+          address: initialSelectedLocation.address,
+          latitude: initialSelectedLocation.latitude,
+          longitude: initialSelectedLocation.longitude,
+          category: initialSelectedLocation.category,
+        });
+        // Center map on this location
+        if (webViewRef.current) {
+          webViewRef.current.postMessage(
+            JSON.stringify({
+              type: "centerOnLocation",
+              location: {
+                latitude: initialSelectedLocation.latitude,
+                longitude: initialSelectedLocation.longitude,
+              },
+            }),
+          );
+        }
+      }
+
+      // Notify parent that location has been viewed
+      if (onLocationViewed) {
+        onLocationViewed();
+      }
+    }
+  }, [initialSelectedLocation, locations]);
+
+  // Handle location from notification params
+  useEffect(() => {
+    if (params && params.locationId && params.latitude && params.longitude) {
+      // Find the location in the locations array
+      const location = locations.find((loc) => loc._id === params.locationId);
+
+      if (location) {
+        setSelectedLocation(location);
+        // Center map on this location
+        if (webViewRef.current) {
+          webViewRef.current.postMessage(
+            JSON.stringify({
+              type: "centerOnLocation",
+              location: {
+                latitude: parseFloat(params.latitude),
+                longitude: parseFloat(params.longitude),
+              },
+            }),
+          );
+        }
+      } else if (locations.length > 0) {
+        // If location not found yet but we have the coordinates, center the map anyway
+        if (webViewRef.current) {
+          webViewRef.current.postMessage(
+            JSON.stringify({
+              type: "centerOnLocation",
+              location: {
+                latitude: parseFloat(params.latitude),
+                longitude: parseFloat(params.longitude),
+              },
+            }),
+          );
+        }
+      }
+    }
+  }, [params, locations]);
 
   useEffect(() => {
     getUserLocation();
     fetchLocations();
-    
+
     // Cleanup location tracking on unmount
     return () => {
       stopLocationTracking();
@@ -52,24 +164,27 @@ const ExploreMap = () => {
   const getUserLocation = async () => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status === 'granted') {
+      if (status === "granted") {
         const location = await Location.getCurrentPositionAsync({});
         setUserLocation(location.coords);
       } else {
         // Default to Kathmandu center
-        setUserLocation({ latitude: 27.7172, longitude: 85.3240 });
+        setUserLocation({ latitude: 27.7172, longitude: 85.324 });
       }
     } catch (error) {
-      console.error('Error getting location:', error);
-      setUserLocation({ latitude: 27.7172, longitude: 85.3240 });
+      console.error("Error getting location:", error);
+      setUserLocation({ latitude: 27.7172, longitude: 85.324 });
     }
   };
 
   const startLocationTracking = async () => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'Location permission is required for live tracking');
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Denied",
+          "Location permission is required for live tracking",
+        );
         return;
       }
 
@@ -90,11 +205,11 @@ const ExploreMap = () => {
           if (showRoute && selectedLocation) {
             fetchRouteFromLocation(newCoords, selectedLocation);
           }
-        }
+        },
       );
     } catch (error) {
-      console.error('Error starting location tracking:', error);
-      Alert.alert('Error', 'Failed to start location tracking');
+      console.error("Error starting location tracking:", error);
+      Alert.alert("Error", "Failed to start location tracking");
     }
   };
 
@@ -115,20 +230,21 @@ const ExploreMap = () => {
         setLocations(result.locations);
       }
     } catch (error) {
-      console.error('Error fetching locations:', error);
-      Alert.alert('Error', 'Failed to load eco-locations');
+      console.error("Error fetching locations:", error);
+      Alert.alert("Error", "Failed to load eco-locations");
     } finally {
       setLoading(false);
     }
   };
 
-  const filteredLocations = activeFilter === 'all'
-    ? locations
-    : locations.filter(loc => loc.category === activeFilter);
+  const filteredLocations =
+    activeFilter === "all"
+      ? locations
+      : locations.filter((loc) => loc.category === activeFilter);
 
   const getCategoryColor = (category) => {
-    const cat = categories.find(c => c.id === category);
-    return cat ? cat.color : '#047857';
+    const cat = categories.find((c) => c.id === category);
+    return cat ? cat.color : "#047857";
   };
 
   const openDirections = (location) => {
@@ -140,18 +256,20 @@ const ExploreMap = () => {
     });
 
     Linking.openURL(url).catch(() => {
-      Alert.alert('Error', 'Could not open maps application');
+      Alert.alert("Error", "Could not open maps application");
     });
   };
 
   const calculateDistance = (lat1, lon1, lat2, lon2) => {
     const R = 6371; // Earth's radius in km
-    const dLat = (lat2 - lat1) * Math.PI / 180;
-    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
     const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     const distance = R * c;
 
@@ -161,9 +279,18 @@ const ExploreMap = () => {
     return `${distance.toFixed(1)} km`;
   };
 
-  // Generate HTML for Leaflet map
   const generateMapHTML = () => {
-    const center = userLocation || { latitude: 27.7172, longitude: 85.3240 };
+    // If there's a selected location from announcement, center on it with higher zoom
+    const center = selectedLocation
+      ? {
+          latitude: selectedLocation.latitude,
+          longitude: selectedLocation.longitude,
+        }
+      : userLocation || { latitude: 27.7172, longitude: 85.324 };
+
+    // Use higher zoom when centering on a specific location
+    const zoomLevel = selectedLocation ? 15 : 12;
+
     const locationsJSON = JSON.stringify(filteredLocations);
     const currentMapType = mapType;
     const routeCoordinates = routeInfo?.coordinates || null;
@@ -192,7 +319,7 @@ const ExploreMap = () => {
 
           const map = L.map('map', {
             center: [${center.latitude}, ${center.longitude}],
-            zoom: 12,
+            zoom: ${zoomLevel},
             minZoom: 7,    // Prevent zooming out too far
             maxZoom: 18,   // Allow zooming in for details
             maxBounds: nepalBounds,  // Restrict panning to Nepal
@@ -242,7 +369,9 @@ const ExploreMap = () => {
           }).addTo(map).bindPopup('You are here');
 
           // Draw route if available
-          ${hasRoute ? `
+          ${
+            hasRoute
+              ? `
           const routeCoords = ${JSON.stringify(routeCoordinates)};
           const latLngs = routeCoords.map(coord => [coord[1], coord[0]]);
           
@@ -256,7 +385,9 @@ const ExploreMap = () => {
           
           // Fit map to show entire route
           map.fitBounds(routeLayer.getBounds(), { padding: [80, 80] });
-          ` : ''}
+          `
+              : ""
+          }
 
           // Eco-location markers
           const locations = ${locationsJSON};
@@ -309,13 +440,13 @@ const ExploreMap = () => {
   const handleWebViewMessage = (event) => {
     try {
       const data = JSON.parse(event.nativeEvent.data);
-      if (data.type === 'markerClick') {
+      if (data.type === "markerClick") {
         setSelectedLocation(data.location);
         setShowRoute(false);
         setRouteInfo(null);
       }
     } catch (error) {
-      console.error('Error parsing message:', error);
+      console.error("Error parsing message:", error);
     }
   };
 
@@ -325,17 +456,17 @@ const ExploreMap = () => {
     try {
       const start = `${userLocation.longitude},${userLocation.latitude}`;
       const end = `${selectedLocation.longitude},${selectedLocation.latitude}`;
-      
+
       // Using OSRM (free, no API key needed)
       const response = await fetch(
-        `https://router.project-osrm.org/route/v1/driving/${start};${end}?overview=full&geometries=geojson`
+        `https://router.project-osrm.org/route/v1/driving/${start};${end}?overview=full&geometries=geojson`,
       );
       const data = await response.json();
 
-      if (data.code === 'Ok' && data.routes.length > 0) {
+      if (data.code === "Ok" && data.routes.length > 0) {
         const route = data.routes[0];
         const routeCoordinates = route.geometry.coordinates;
-        
+
         setRouteInfo({
           distance: (route.distance / 1000).toFixed(1), // Convert to km
           duration: Math.round(route.duration / 60), // Convert to minutes
@@ -346,11 +477,11 @@ const ExploreMap = () => {
         // Start live location tracking
         startLocationTracking();
       } else {
-        Alert.alert('Route Error', 'Could not find a route to this location');
+        Alert.alert("Route Error", "Could not find a route to this location");
       }
     } catch (error) {
-      console.error('Error fetching route:', error);
-      Alert.alert('Error', 'Failed to calculate route');
+      console.error("Error fetching route:", error);
+      Alert.alert("Error", "Failed to calculate route");
     }
   };
 
@@ -358,16 +489,16 @@ const ExploreMap = () => {
     try {
       const start = `${fromLocation.longitude},${fromLocation.latitude}`;
       const end = `${toLocation.longitude},${toLocation.latitude}`;
-      
+
       const response = await fetch(
-        `https://router.project-osrm.org/route/v1/driving/${start};${end}?overview=full&geometries=geojson`
+        `https://router.project-osrm.org/route/v1/driving/${start};${end}?overview=full&geometries=geojson`,
       );
       const data = await response.json();
 
-      if (data.code === 'Ok' && data.routes.length > 0) {
+      if (data.code === "Ok" && data.routes.length > 0) {
         const route = data.routes[0];
         const routeCoordinates = route.geometry.coordinates;
-        
+
         setRouteInfo({
           distance: (route.distance / 1000).toFixed(1),
           duration: Math.round(route.duration / 60),
@@ -375,7 +506,7 @@ const ExploreMap = () => {
         });
       }
     } catch (error) {
-      console.error('Error updating route:', error);
+      console.error("Error updating route:", error);
     }
   };
 
@@ -413,29 +544,30 @@ const ExploreMap = () => {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filterScroll}
         >
-          {categories.map(cat => {
-            const count = cat.id === 'all'
-              ? locations.length
-              : locations.filter(loc => loc.category === cat.id).length;
+          {categories.map((cat) => {
+            const count =
+              cat.id === "all"
+                ? locations.length
+                : locations.filter((loc) => loc.category === cat.id).length;
 
             return (
               <Pressable
                 key={cat.id}
                 style={[
                   styles.filterChip,
-                  activeFilter === cat.id && { backgroundColor: cat.color }
+                  activeFilter === cat.id && { backgroundColor: cat.color },
                 ]}
                 onPress={() => setActiveFilter(cat.id)}
               >
                 <MaterialIcons
                   name={cat.icon}
                   size={16}
-                  color={activeFilter === cat.id ? '#fff' : '#64748B'}
+                  color={activeFilter === cat.id ? "#fff" : "#64748B"}
                 />
                 <Text
                   style={[
                     styles.filterText,
-                    activeFilter === cat.id && styles.filterTextActive
+                    activeFilter === cat.id && styles.filterTextActive,
                   ]}
                 >
                   {cat.label}
@@ -443,13 +575,13 @@ const ExploreMap = () => {
                 <View
                   style={[
                     styles.filterBadge,
-                    activeFilter === cat.id && styles.filterBadgeActive
+                    activeFilter === cat.id && styles.filterBadgeActive,
                   ]}
                 >
                   <Text
                     style={[
                       styles.filterBadgeText,
-                      activeFilter === cat.id && styles.filterBadgeTextActive
+                      activeFilter === cat.id && styles.filterBadgeTextActive,
                     ]}
                   >
                     {count}
@@ -465,22 +597,32 @@ const ExploreMap = () => {
       <Pressable
         style={[styles.mapTypeButton, { top: insets.top + 70 }]}
         onPress={() => {
-          if (mapType === 'standard') {
-            setMapType('satellite');
-          } else if (mapType === 'satellite') {
-            setMapType('hybrid');
+          if (mapType === "standard") {
+            setMapType("satellite");
+          } else if (mapType === "satellite") {
+            setMapType("hybrid");
           } else {
-            setMapType('standard');
+            setMapType("standard");
           }
         }}
       >
         <MaterialIcons
-          name={mapType === 'standard' ? 'satellite' : mapType === 'satellite' ? 'layers' : 'map'}
+          name={
+            mapType === "standard"
+              ? "satellite"
+              : mapType === "satellite"
+                ? "layers"
+                : "map"
+          }
           size={24}
           color="#047857"
         />
         <Text style={styles.mapTypeText}>
-          {mapType === 'standard' ? 'Satellite' : mapType === 'satellite' ? 'Hybrid' : 'Map'}
+          {mapType === "standard"
+            ? "Satellite"
+            : mapType === "satellite"
+              ? "Hybrid"
+              : "Map"}
         </Text>
       </Pressable>
 
@@ -492,12 +634,15 @@ const ExploreMap = () => {
               <Text style={styles.locationName}>{selectedLocation.name}</Text>
               <View style={styles.categoryBadge}>
                 <MaterialIcons
-                  name={categories.find(c => c.id === selectedLocation.category)?.icon || 'place'}
+                  name={
+                    categories.find((c) => c.id === selectedLocation.category)
+                      ?.icon || "place"
+                  }
                   size={14}
                   color="#fff"
                 />
                 <Text style={styles.categoryText}>
-                  {selectedLocation.category.replace('_', ' ')}
+                  {selectedLocation.category.replace("_", " ")}
                 </Text>
               </View>
             </View>
@@ -515,7 +660,9 @@ const ExploreMap = () => {
 
           <View style={styles.locationInfo}>
             <MaterialIcons name="place" size={18} color="#64748B" />
-            <Text style={styles.locationAddress}>{selectedLocation.address}</Text>
+            <Text style={styles.locationAddress}>
+              {selectedLocation.address}
+            </Text>
           </View>
 
           {userLocation && (
@@ -526,8 +673,9 @@ const ExploreMap = () => {
                   userLocation.latitude,
                   userLocation.longitude,
                   selectedLocation.latitude,
-                  selectedLocation.longitude
-                )} away
+                  selectedLocation.longitude,
+                )}{" "}
+                away
               </Text>
             </View>
           )}
@@ -536,11 +684,15 @@ const ExploreMap = () => {
             <View style={styles.routeInfoContainer}>
               <View style={styles.routeInfoItem}>
                 <MaterialIcons name="straighten" size={18} color="#047857" />
-                <Text style={styles.routeInfoText}>{routeInfo.distance} km</Text>
+                <Text style={styles.routeInfoText}>
+                  {routeInfo.distance} km
+                </Text>
               </View>
               <View style={styles.routeInfoItem}>
                 <MaterialIcons name="schedule" size={18} color="#047857" />
-                <Text style={styles.routeInfoText}>{routeInfo.duration} min</Text>
+                <Text style={styles.routeInfoText}>
+                  {routeInfo.duration} min
+                </Text>
               </View>
               {isTracking && (
                 <View style={styles.liveIndicator}>
@@ -576,7 +728,9 @@ const ExploreMap = () => {
                   onPress={clearRoute}
                 >
                   <MaterialIcons name="close" size={20} color="#64748B" />
-                  <Text style={[styles.actionButtonText, { color: '#64748B' }]}>Clear Route</Text>
+                  <Text style={[styles.actionButtonText, { color: "#64748B" }]}>
+                    Clear Route
+                  </Text>
                 </Pressable>
                 <Pressable
                   style={[styles.actionButton, styles.directionsButton]}
@@ -597,21 +751,21 @@ const ExploreMap = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#FAFBFC',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#FAFBFC",
   },
   loadingText: {
     marginTop: 12,
     fontSize: 16,
-    color: '#64748B',
+    color: "#64748B",
   },
   filterContainer: {
-    position: 'absolute',
+    position: "absolute",
     left: 0,
     right: 0,
     zIndex: 10,
@@ -621,15 +775,15 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   filterChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
     marginRight: 8,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 4,
@@ -637,53 +791,53 @@ const styles = StyleSheet.create({
   },
   filterText: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#64748B',
+    fontWeight: "600",
+    color: "#64748B",
   },
   filterTextActive: {
-    color: '#fff',
+    color: "#fff",
   },
   filterBadge: {
-    backgroundColor: '#E2E8F0',
+    backgroundColor: "#E2E8F0",
     paddingHorizontal: 5,
     paddingVertical: 1,
     borderRadius: 8,
     minWidth: 18,
-    alignItems: 'center',
+    alignItems: "center",
   },
   filterBadgeActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    backgroundColor: "rgba(255, 255, 255, 0.3)",
   },
   filterBadgeText: {
     fontSize: 10,
-    fontWeight: '700',
-    color: '#64748B',
+    fontWeight: "700",
+    color: "#64748B",
   },
   filterBadgeTextActive: {
-    color: '#fff',
+    color: "#fff",
   },
   map: {
     flex: 1,
   },
   detailsCard: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     padding: 20,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.1,
     shadowRadius: 12,
     elevation: 10,
   },
   detailsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
     marginBottom: 12,
   },
   detailsHeaderLeft: {
@@ -691,131 +845,131 @@ const styles = StyleSheet.create({
   },
   locationName: {
     fontSize: 20,
-    fontWeight: '800',
-    color: '#111827',
+    fontWeight: "800",
+    color: "#111827",
     marginBottom: 8,
   },
   categoryBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
-    backgroundColor: '#047857',
+    backgroundColor: "#047857",
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
   },
   categoryText: {
     fontSize: 12,
-    fontWeight: '600',
-    color: '#fff',
-    textTransform: 'capitalize',
+    fontWeight: "600",
+    color: "#fff",
+    textTransform: "capitalize",
   },
   closeButton: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#F3F4F6',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#F3F4F6",
+    justifyContent: "center",
+    alignItems: "center",
   },
   locationDescription: {
     fontSize: 14,
-    color: '#64748B',
+    color: "#64748B",
     lineHeight: 20,
     marginBottom: 12,
   },
   locationInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
     marginBottom: 8,
   },
   locationAddress: {
     fontSize: 14,
-    color: '#64748B',
+    color: "#64748B",
     flex: 1,
   },
   locationDistance: {
     fontSize: 14,
-    color: '#64748B',
-    fontWeight: '600',
+    color: "#64748B",
+    fontWeight: "600",
   },
   routeInfoContainer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 16,
     paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: '#F0F9FF',
+    backgroundColor: "#F0F9FF",
     borderRadius: 12,
     marginVertical: 8,
   },
   routeInfoItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
   },
   routeInfoText: {
     fontSize: 14,
-    fontWeight: '700',
-    color: '#047857',
+    fontWeight: "700",
+    color: "#047857",
   },
   liveIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
-    marginLeft: 'auto',
+    marginLeft: "auto",
   },
   liveDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#047857',
+    backgroundColor: "#047857",
   },
   liveText: {
     fontSize: 12,
-    fontWeight: '700',
-    color: '#047857',
+    fontWeight: "700",
+    color: "#047857",
   },
   buttonRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 10,
     marginTop: 12,
   },
   actionButton: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 8,
     paddingVertical: 14,
     borderRadius: 16,
   },
   routeButton: {
-    backgroundColor: '#047857',
+    backgroundColor: "#047857",
   },
   clearButton: {
-    backgroundColor: '#F1F5F9',
+    backgroundColor: "#F1F5F9",
   },
   directionsButton: {
-    backgroundColor: '#047857',
+    backgroundColor: "#047857",
   },
   actionButtonText: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#fff',
+    fontWeight: "700",
+    color: "#fff",
   },
   mapTypeButton: {
-    position: 'absolute',
+    position: "absolute",
     right: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
-    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    backgroundColor: "rgba(255, 255, 255, 0.95)",
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,
     shadowRadius: 4,
@@ -824,11 +978,9 @@ const styles = StyleSheet.create({
   },
   mapTypeText: {
     fontSize: 13,
-    fontWeight: '700',
-    color: '#047857',
+    fontWeight: "700",
+    color: "#047857",
   },
 });
 
 export default ExploreMap;
-
-

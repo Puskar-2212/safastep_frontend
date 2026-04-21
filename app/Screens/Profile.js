@@ -4,20 +4,39 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
+import { LinearGradient } from "expo-linear-gradient";
 import {
-  Alert,
-  Image,
-  Modal,
-  Platform,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    Alert,
+    Image,
+    Modal,
+    Platform,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
+    Animated,
+    LayoutAnimation,
+    UIManager,
 } from "react-native";
 import { BASE_URL } from "../../constants/config";
+
+// Enable LayoutAnimation on Android
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+// Badge images mapping - all badges as PNG
+const BADGE_IMAGES = {
+  eco_starter: require("../../assets/badges/Eco_starter.png"),
+  eco_enthusiast: require("../../assets/badges/Eco_enthusiast.png"),
+  eco_champion: require("../../assets/badges/Eco_champion.png"),
+  first_step: require("../../assets/badges/first_step.png"),
+  eco_contributor: require("../../assets/badges/Eco_contributor.png"),
+  eco_influencer: require("../../assets/badges/Eco_influencer.png"),
+};
 
 const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
   const router = useRouter();
@@ -29,6 +48,7 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
     posts: 0,
     ecoPoints: 0,
   });
+  const [achievements, setAchievements] = useState([]);
 
   // Edit profile modal state
   const [editModalVisible, setEditModalVisible] = useState(false);
@@ -39,6 +59,7 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
   });
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [expandedAchievement, setExpandedAchievement] = useState(null);
 
   // Check if viewing own profile or another user's profile
   const isOwnProfile = !viewingUserId || userData?.mobile === viewingUserId;
@@ -50,6 +71,7 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
     } else if (userData) {
       loadUserPosts();
       loadCarbonFootprint();
+      loadAchievements();
     }
   }, [userData, viewingUserId]);
 
@@ -66,6 +88,20 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
       }
     } catch (error) {
       console.error("Error loading carbon footprint:", error);
+    }
+  };
+
+  const loadAchievements = async () => {
+    try {
+      const mobile = userData?.mobile || (await AsyncStorage.getItem("mobile"));
+      const response = await fetch(`${BASE_URL}/user/${mobile}/achievements`);
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        setAchievements(result.achievements);
+      }
+    } catch (error) {
+      console.error("Error loading achievements:", error);
     }
   };
 
@@ -478,50 +514,23 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
     );
   };
 
-  const achievements = [
-    {
-      id: 1,
-      icon: "eco",
-      title: "Eco Warrior",
-      color: "#047857",
-      unlocked: true,
-    },
-    {
-      id: 2,
-      icon: "park",
-      title: "Tree Planter",
-      color: "#047857",
-      unlocked: true,
-    },
-    {
-      id: 3,
-      icon: "recycling",
-      title: "Recycler",
-      color: "#8B5CF6",
-      unlocked: true,
-    },
-    {
-      id: 4,
-      icon: "bolt",
-      title: "Energy Saver",
-      color: "#F59E0B",
-      unlocked: false,
-    },
-    {
-      id: 5,
-      icon: "water-drop",
-      title: "Water Hero",
-      color: "#3B82F6",
-      unlocked: false,
-    },
-    {
-      id: 6,
-      icon: "directions-bike",
-      title: "Green Commuter",
-      color: "#047857",
-      unlocked: false,
-    },
-  ];
+
+  const ecoPoints = stats.ecoPoints || 0;
+  const currentLevel = Math.max(1, Math.floor(ecoPoints / 100) + 1);
+  const nextLevelPoints = currentLevel * 100;
+  const previousLevelPoints = (currentLevel - 1) * 100;
+  const levelProgress = nextLevelPoints
+    ? Math.min(1, (ecoPoints - previousLevelPoints) / (nextLevelPoints - previousLevelPoints))
+    : 0;
+  const levelTitle =
+    ecoPoints >= 300
+      ? "Cool The Globe Contributor"
+      : ecoPoints >= 150
+        ? "Earth Defender"
+        : "Eco Explorer";
+  const profileContact = isOwnProfile
+    ? userData?.email || userData?.mobile
+    : viewingUserData?.email || viewingUserData?.mobile;
 
   return (
     <ScrollView
@@ -531,305 +540,335 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
         <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
       }
     >
-      {/* Header with Cover */}
-      <View style={styles.coverContainer}>
-        <View style={styles.coverGradient} />
-        {isOwnProfile && (
-          <Pressable style={styles.settingsButton} onPress={handleSettingsMenu}>
-            <MaterialIcons name="settings" size={22} color="#fff" />
-          </Pressable>
-        )}
-        {!isOwnProfile && (
-          <Pressable
-            style={styles.settingsButton}
-            onPress={() => router.back()}
-          >
-            <MaterialIcons name="arrow-back" size={22} color="#fff" />
-          </Pressable>
-        )}
-      </View>
+      <View style={styles.heroSection}>
+        <LinearGradient
+          colors={["#047857", "#065F46"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.heroBackground}
+        >
+          <View style={styles.headerRow}>
 
-      {/* Profile Info */}
-      <View style={styles.profileSection}>
-        <View style={styles.avatarContainer}>
-          {isOwnProfile ? (
-            <>
-              {userData?.profilePicture ? (
+            <Pressable
+              style={styles.headerButton}
+              onPress={isOwnProfile ? handleSettingsMenu : () => router.back()}
+            >
+              <MaterialIcons
+                name={isOwnProfile ? "settings" : "arrow-back"}
+                size={22}
+                color="#fff"
+              />
+            </Pressable>
+            {isOwnProfile && (
+              <Pressable
+                style={[styles.headerButton, { marginLeft: 12 }]}
+                onPress={handleEditProfile}
+              >
+                <MaterialIcons name="edit" size={22} color="#fff" />
+              </Pressable>
+            )}
+          </View>
+
+          <View style={styles.heroCard}>
+            <View style={styles.heroAvatarWrapper}>
+              {isOwnProfile && userData?.profilePicture ? (
                 <Image
                   source={{ uri: userData.profilePicture }}
-                  style={styles.avatar}
+                  style={styles.heroAvatar}
                 />
+              ) : isOwnProfile ? (
+                <View style={[styles.heroAvatar, styles.heroAvatarFallback]}>
+                  <MaterialIcons name="person" size={60} color="#fff" />
+                </View>
               ) : (
-                <View style={styles.avatar}>
+                <View style={[styles.heroAvatar, styles.heroAvatarFallback]}>
                   <MaterialIcons name="person" size={60} color="#fff" />
                 </View>
               )}
-              <Pressable
-                style={styles.editAvatarButton}
-                onPress={handleProfilePhotoOptions}
-              >
-                <MaterialIcons name="camera-alt" size={18} color="#047857" />
-              </Pressable>
-            </>
-          ) : (
-            <View style={styles.avatar}>
-              <MaterialIcons name="person" size={60} color="#fff" />
-            </View>
-          )}
-        </View>
 
-        <Text style={styles.userName}>
-          {isOwnProfile
-            ? `${userData?.firstName} ${userData?.lastName}`
-            : "Anonymous User"}
-        </Text>
-        <Text style={styles.userBio}>
-          🌱 Making the world greener, one step at a time
-        </Text>
-
-        {/* Stats Row */}
-        <View style={styles.statsContainer}>
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{stats.posts}</Text>
-            <Text style={styles.statLabel}>Posts</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{stats.ecoPoints}</Text>
-            <Text style={styles.statLabel}>Eco Points</Text>
-          </View>
-        </View>
-
-        {/* Action Buttons - only show for own profile */}
-        {isOwnProfile && (
-          <View style={styles.actionButtons}>
-            <Pressable style={styles.primaryButton} onPress={handleEditProfile}>
-              <MaterialIcons name="edit" size={20} color="#fff" />
-              <Text style={styles.primaryButtonText}>Edit Profile</Text>
-            </Pressable>
-            <Pressable style={styles.secondaryButton}>
-              <MaterialIcons name="share" size={20} color="#047857" />
-            </Pressable>
-          </View>
-        )}
-      </View>
-
-      {/* Eco Points Card */}
-      <View style={styles.ecoPointsCard}>
-        <View style={styles.ecoPointsHeader}>
-          <View style={styles.ecoPointsIcon}>
-            <MaterialIcons name="eco" size={28} color="#fff" />
-          </View>
-          <View style={styles.ecoPointsInfo}>
-            <Text style={styles.ecoPointsLabel}>Eco Points</Text>
-            <Text style={styles.ecoPointsValue}>{stats.ecoPoints}</Text>
-          </View>
-        </View>
-        <Text style={styles.ecoPointsSubtext}>
-          Keep making eco-friendly actions to earn more points!
-        </Text>
-      </View>
-
-      {/* Carbon Footprint Card - Only show on own profile */}
-      {isOwnProfile && carbonFootprint && (
-        <View style={styles.carbonFootprintCard}>
-          <View style={styles.carbonFootprintHeader}>
-            <View style={styles.carbonFootprintIconContainer}>
-              <MaterialIcons name="cloud" size={28} color="#047857" />
-            </View>
-            <View style={styles.carbonFootprintInfo}>
-              <Text style={styles.carbonFootprintLabel}>Carbon Footprint</Text>
-              <View style={styles.carbonFootprintScoreRow}>
-                <Text style={styles.carbonFootprintValue}>
-                  {carbonFootprint.totalCO2} kg/day
-                </Text>
-                <View
-                  style={[
-                    styles.impactLevelBadge,
-                    {
-                      backgroundColor:
-                        carbonFootprint.impactLevel === "Excellent"
-                          ? "#047857"
-                          : carbonFootprint.impactLevel === "Good"
-                            ? "#3B82F6"
-                            : carbonFootprint.impactLevel === "Average"
-                              ? "#F59E0B"
-                              : "#EF4444",
-                    },
-                  ]}
+              {isOwnProfile && (
+                <Pressable
+                  style={styles.heroEditAvatar}
+                  onPress={handleProfilePhotoOptions}
                 >
-                  <Text style={styles.impactLevelText}>
-                    {carbonFootprint.impactLevel}
+                  <MaterialIcons name="camera-alt" size={18} color="#047857" />
+                </Pressable>
+              )}
+            </View>
+
+            <View style={styles.heroInfo}>
+              <Text style={styles.userName}>
+                {isOwnProfile
+                  ? `${userData?.firstName || ""} ${userData?.lastName || ""}`.trim()
+                  : viewingUserData
+                    ? `${viewingUserData.firstName} ${viewingUserData.lastName}`
+                    : "Loading..."}
+              </Text>
+              {profileContact ? (
+                <Text style={styles.userSubtitle}>{profileContact}</Text>
+              ) : (
+                <Text style={styles.userSubtitle}>SafaStep Eco Member</Text>
+              )}
+              <View style={styles.heroBadges}>
+                <View style={styles.levelBadge}>
+                  <MaterialIcons name="emoji-events" size={16} color="#fff" />
+                  <Text style={styles.levelBadgeText}>Level {currentLevel}</Text>
+                </View>
+                <View style={styles.roleBadge}>
+                  <Text style={styles.roleBadgeText}>{levelTitle}</Text>
+                </View>
+              </View>
+            </View>
+          </View>
+        </LinearGradient>
+      </View>
+
+      <View style={styles.contentSection}>
+        <View style={styles.progressCard}>
+          <View style={styles.progressHeader}>
+            <View>
+              <Text style={styles.progressTitle}>Progress to next level</Text>
+              <Text style={styles.progressSubtitle}>{levelTitle}</Text>
+            </View>
+            <Text style={styles.progressValue}>{Math.round(levelProgress * 100)}%</Text>
+          </View>
+          <View style={styles.progressBarBackground}>
+            <View
+              style={[styles.progressBarFill, { width: `${Math.round(levelProgress * 100)}%` }]}
+            />
+          </View>
+          <View style={styles.progressMeta}>
+            <Text style={styles.progressMetaText}>
+              {ecoPoints - previousLevelPoints} / {nextLevelPoints - previousLevelPoints} points
+            </Text>
+            <Text style={styles.progressMetaText}>Next milestone: {nextLevelPoints}</Text>
+          </View>
+        </View>
+
+        <View style={styles.statRow}>
+          <View style={styles.statCard}>
+            <Text style={styles.statSmallLabel}>Posts</Text>
+            <Text style={styles.statLargeValue}>{stats.posts}</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statSmallLabel}>Eco Points</Text>
+            <Text style={styles.statLargeValue}>{stats.ecoPoints}</Text>
+          </View>
+        </View>
+
+        {isOwnProfile && carbonFootprint && (
+          <View style={[styles.summaryRow, styles.summaryRowSingle]}>
+            <View style={[styles.summaryCard, styles.summaryCardFull]}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <View style={styles.summaryIconRow}>
+                  <MaterialIcons name="cloud" size={24} color="#047857" />
+                  <Text style={styles.summaryTitle}>Carbon Footprint</Text>
+                </View>
+                <Pressable
+                  style={{ paddingHorizontal: 10, paddingVertical: 6, backgroundColor: '#F1F5F9', borderRadius: 16 }}
+                  onPress={() => router.push('/Screens/CarbonFootprintHistory')}
+                >
+                  <Text style={{ color: '#047857', fontWeight: '700', fontSize: 13 }}>View History</Text>
+                </Pressable>
+              </View>
+              <Text style={styles.carbonFootprintValueCard}>
+                {carbonFootprint.totalCO2} kg/day
+              </Text>
+              <View style={styles.carbonCardChips}>
+                <View style={styles.carbonChip}>
+                  <MaterialIcons name="park" size={14} color="#047857" />
+                  <Text style={styles.carbonChipText}>{carbonFootprint.treesNeeded} trees/year</Text>
+                </View>
+                <View style={styles.carbonChip}>
+                  <MaterialIcons name="calendar-today" size={14} color="#047857" />
+                  <Text style={styles.carbonChipText}>
+                    {new Date(carbonFootprint.timestamp * 1000).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                    })}
                   </Text>
                 </View>
               </View>
-            </View>
-          </View>
-          <View style={styles.carbonFootprintStats}>
-            <View style={styles.carbonStat}>
-              <MaterialIcons name="calendar-today" size={16} color="#64748B" />
-              <Text style={styles.carbonStatText}>
-                {new Date(carbonFootprint.timestamp * 1000).toLocaleDateString(
-                  "en-US",
-                  {
-                    month: "short",
-                    day: "numeric",
-                  },
-                )}
-              </Text>
-            </View>
-            <View style={styles.carbonStat}>
-              <MaterialIcons name="park" size={16} color="#047857" />
-              <Text style={styles.carbonStatText}>
-                {carbonFootprint.treesNeeded} trees/year
-              </Text>
-            </View>
-          </View>
-          <Pressable
-            style={styles.viewHistoryButton}
-            onPress={() => router.push("/Screens/CarbonFootprintHistory")}
-          >
-            <Text style={styles.viewHistoryText}>View Full History</Text>
-            <MaterialIcons name="chevron-right" size={20} color="#047857" />
-          </Pressable>
-        </View>
-      )}
-
-      {/* Achievements */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Achievements</Text>
-          <Pressable>
-            <Text style={styles.seeAllText}>See All</Text>
-          </Pressable>
-        </View>
-        <View style={styles.achievementsGrid}>
-          {achievements.map((achievement) => (
-            <View
-              key={achievement.id}
-              style={[
-                styles.achievementCard,
-                !achievement.unlocked && styles.achievementLocked,
-              ]}
-            >
               <View
                 style={[
-                  styles.achievementIcon,
+                  styles.impactLevelBadge,
                   {
-                    backgroundColor: achievement.unlocked
-                      ? achievement.color
-                      : "#E2E8F0",
+                    backgroundColor:
+                      carbonFootprint.impactLevel === "Excellent"
+                        ? "#047857"
+                        : carbonFootprint.impactLevel === "Good"
+                          ? "#3B82F6"
+                          : carbonFootprint.impactLevel === "Average"
+                            ? "#F59E0B"
+                            : "#EF4444",
                   },
                 ]}
               >
-                <MaterialIcons
-                  name={achievement.icon}
-                  size={28}
-                  color={achievement.unlocked ? "#fff" : "#94A3B8"}
-                />
+                <Text style={styles.impactLevelText}>
+                  {carbonFootprint.impactLevel}
+                </Text>
               </View>
-              <Text
-                style={[
-                  styles.achievementTitle,
-                  !achievement.unlocked && styles.achievementTitleLocked,
-                ]}
-              >
-                {achievement.title}
-              </Text>
             </View>
-          ))}
-        </View>
-      </View>
-
-      {/* User Posts Grid */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>My Posts</Text>
-          <Text style={styles.postCount}>{userPosts.length} posts</Text>
-        </View>
-
-        {userPosts.length > 0 ? (
-          <View style={styles.postsGrid}>
-            {userPosts.map((post) => (
-              <Pressable key={post._id} style={styles.postCard}>
-                <Image
-                  source={{ uri: post.imageUrl }}
-                  style={styles.postImage}
-                  resizeMode="cover"
-                />
-                <View style={styles.postOverlay}>
-                  <View style={styles.postStats}>
-                    <MaterialIcons name="favorite" size={16} color="#fff" />
-                    <Text style={styles.postStatText}>{post.likesCount}</Text>
-                  </View>
-                </View>
-
-                {/* Status Badge */}
-                {post.verificationStatus === "pending_review" && (
-                  <View style={styles.statusBadge}>
-                    <MaterialIcons name="schedule" size={10} color="#F59E0B" />
-                    <Text style={styles.statusBadgeText}>Pending</Text>
-                  </View>
-                )}
-                {post.verificationStatus === "rejected" && (
-                  <View
-                    style={[styles.statusBadge, styles.statusBadgeRejected]}
-                  >
-                    <MaterialIcons name="close" size={10} color="#EF4444" />
-                    <Text
-                      style={[
-                        styles.statusBadgeText,
-                        styles.statusBadgeTextRejected,
-                      ]}
-                    >
-                      Rejected
-                    </Text>
-                  </View>
-                )}
-                {post.verificationStatus === "error" && (
-                  <View style={[styles.statusBadge, styles.statusBadgeError]}>
-                    <MaterialIcons name="error" size={10} color="#DC2626" />
-                    <Text
-                      style={[
-                        styles.statusBadgeText,
-                        styles.statusBadgeTextError,
-                      ]}
-                    >
-                      Error
-                    </Text>
-                  </View>
-                )}
-
-                {/* Delete button - only show on own profile */}
-                {isOwnProfile && (
-                  <Pressable
-                    style={styles.deleteButton}
-                    onPress={() => handleDeletePost(post._id)}
-                  >
-                    <MaterialIcons
-                      name="delete-outline"
-                      size={16}
-                      color="#fff"
-                    />
-                  </Pressable>
-                )}
-              </Pressable>
-            ))}
-          </View>
-        ) : (
-          <View style={styles.emptyState}>
-            <MaterialIcons name="photo-library" size={64} color="#CBD5E1" />
-            <Text style={styles.emptyStateText}>No posts yet</Text>
-            <Text style={styles.emptyStateSubtext}>
-              Share your eco-actions to inspire others!
-            </Text>
           </View>
         )}
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <View>
+              <Text style={styles.sectionTitle}>Achievements</Text>
+              <Text style={styles.sectionSubtitle}>
+                {achievements.filter((item) => item.unlocked).length} unlocked
+              </Text>
+            </View>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.achievementsScroll}
+          >
+            {achievements.map((achievement) => {
+              const isExpanded = expandedAchievement === achievement.id;
+              return (
+                <Pressable
+                  key={achievement.id}
+                  style={[
+                    styles.achievementCard,
+                    achievement.unlocked ? styles.achievementCardActive : styles.achievementCardLocked,
+                    isExpanded && styles.achievementCardExpanded,
+                  ]}
+                  onPress={() => {
+                    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+                    setExpandedAchievement(isExpanded ? null : achievement.id);
+                  }}
+                >
+                  {BADGE_IMAGES[achievement.id] ? (
+                    <Image
+                      source={BADGE_IMAGES[achievement.id]}
+                      style={styles.achievementBadgeImage}
+                      resizeMode="contain"
+                    />
+                  ) : (
+                    <View style={styles.achievementIconPlaceholder}>
+                      <MaterialIcons 
+                        name="emoji-events" 
+                        size={64} 
+                        color={achievement.unlocked ? "#047857" : "#CBD5E1"} 
+                      />
+                    </View>
+                  )}
+                  <Text
+                    style={[
+                      styles.achievementTitle,
+                      !achievement.unlocked && styles.achievementTitleLocked,
+                    ]}
+                  >
+                    {achievement.name}
+                  </Text>
+                  
+                  {isExpanded && (
+                    <>
+                      <Text
+                        style={[
+                          styles.achievementDescription,
+                          !achievement.unlocked && styles.achievementDescriptionLocked,
+                        ]}
+                      >
+                        {achievement.description}
+                      </Text>
+                      {achievement.unlocked ? (
+                        <View style={styles.achievementStatus}>
+                          <MaterialIcons name="check-circle" size={16} color="#047857" />
+                          <Text style={styles.achievementStatusText}>Unlocked!</Text>
+                        </View>
+                      ) : (
+                        <View style={styles.achievementStatusLocked}>
+                          <MaterialIcons name="lock" size={16} color="#94A3B8" />
+                          <Text style={styles.achievementStatusTextLocked}>Locked</Text>
+                        </View>
+                      )}
+                    </>
+                  )}
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+
+
+
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <View>
+              <Text style={styles.sectionTitle}>My Posts</Text>
+              <Text style={styles.sectionSubtitle}>{userPosts.length} photos shared</Text>
+            </View>
+          </View>
+
+          {userPosts.length > 0 ? (
+            <View style={styles.postsGrid}>
+              {userPosts.map((post) => (
+                <Pressable key={post._id} style={styles.postCard}>
+                  <Image
+                    source={{ uri: post.imageUrl }}
+                    style={styles.postImage}
+                    resizeMode="cover"
+                  />
+                  <View style={styles.postOverlay}>
+                    <View style={styles.postStats}>
+                      <MaterialIcons name="favorite" size={16} color="#fff" />
+                      <Text style={styles.postStatText}>{post.likesCount}</Text>
+                    </View>
+                  </View>
+
+                  {post.verificationStatus === "pending_review" && (
+                    <View style={styles.statusBadge}>
+                      <MaterialIcons name="schedule" size={10} color="#F59E0B" />
+                      <Text style={styles.statusBadgeText}>Pending</Text>
+                    </View>
+                  )}
+                  {post.verificationStatus === "rejected" && (
+                    <View style={[styles.statusBadge, styles.statusBadgeRejected]}>
+                      <MaterialIcons name="close" size={10} color="#EF4444" />
+                      <Text style={[styles.statusBadgeText, styles.statusBadgeTextRejected]}>
+                        Rejected
+                      </Text>
+                    </View>
+                  )}
+                  {post.verificationStatus === "error" && (
+                    <View style={[styles.statusBadge, styles.statusBadgeError]}>
+                      <MaterialIcons name="error" size={10} color="#DC2626" />
+                      <Text style={[styles.statusBadgeText, styles.statusBadgeTextError]}>
+                        Error
+                      </Text>
+                    </View>
+                  )}
+
+                  {isOwnProfile && (
+                    <Pressable
+                      style={styles.deleteButton}
+                      onPress={() => handleDeletePost(post._id)}
+                    >
+                      <MaterialIcons name="delete-outline" size={16} color="#fff" />
+                    </Pressable>
+                  )}
+                </Pressable>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.emptyState}>
+              <MaterialIcons name="photo-library" size={64} color="#CBD5E1" />
+              <Text style={styles.emptyStateText}>No posts yet</Text>
+              <Text style={styles.emptyStateSubtext}>
+                Share your eco-actions to inspire others!
+              </Text>
+            </View>
+          )}
+        </View>
       </View>
 
       <View style={styles.bottomPadding} />
 
-      {/* Edit Profile Modal */}
       <Modal
         visible={editModalVisible}
         animationType="slide"
@@ -937,289 +976,307 @@ const Profile = ({ userData, onRefresh, viewingUserId = null }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FAFBFC",
+    backgroundColor: "#F8FAFC",
   },
-  coverContainer: {
-    height: 180,
+  heroSection: {
     backgroundColor: "#047857",
-    position: "relative",
   },
-  coverGradient: {
-    flex: 1,
-    backgroundColor: "linear-gradient(135deg, #047857 0%, #8B5CF6 100%)",
-  },
-  settingsButton: {
-    position: "absolute",
-    top: 50,
-    right: 20,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  profileSection: {
-    alignItems: "center",
+  heroBackground: {
+    paddingBottom: 24,
+    paddingTop: 44,
     paddingHorizontal: 20,
-    marginTop: -50,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
   },
-  avatarContainer: {
+  headerRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 26,
+  },
+  headerButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.18)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  heroCard: {
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    borderRadius: 24,
+    padding: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.18)",
+  },
+  heroAvatarWrapper: {
     position: "relative",
-    marginBottom: 16,
   },
-  avatar: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+  heroAvatar: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    borderWidth: 4,
+    borderColor: "rgba(255, 255, 255, 0.35)",
     backgroundColor: "#047857",
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 5,
-    borderColor: "#fff",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 8,
     overflow: "hidden",
   },
-  editAvatarButton: {
+  heroAvatarFallback: {
+    backgroundColor: "rgba(255, 255, 255, 0.18)",
+  },
+  heroEditAvatar: {
     position: "absolute",
-    bottom: 0,
-    right: 0,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    bottom: -4,
+    right: -4,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: "#fff",
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 3,
-    borderColor: "#FAFBFC",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 4,
+    borderWidth: 2,
+    borderColor: "#047857",
+  },
+  heroInfo: {
+    flex: 1,
   },
   userName: {
-    fontSize: 26,
-    fontWeight: "800",
-    color: "#1E293B",
-    marginBottom: 8,
-    letterSpacing: -0.5,
-  },
-  userBio: {
-    fontSize: 15,
-    color: "#64748B",
-    textAlign: "center",
-    marginBottom: 24,
-    paddingHorizontal: 20,
-  },
-  statsContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    paddingVertical: 20,
-    paddingHorizontal: 32,
-    borderRadius: 20,
-    marginBottom: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  statItem: {
-    flex: 1,
-    alignItems: "center",
-  },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: "800",
-    color: "#1E293B",
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 13,
-    color: "#64748B",
-    fontWeight: "600",
-  },
-  statDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: "#E2E8F0",
-  },
-  actionButtons: {
-    flexDirection: "row",
-    gap: 12,
-    width: "100%",
-    marginBottom: 24,
-  },
-  primaryButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    backgroundColor: "#047857",
-    paddingVertical: 14,
-    borderRadius: 16,
-    shadowColor: "#047857",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  primaryButtonText: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#fff",
-  },
-  secondaryButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 16,
-    backgroundColor: "#E6F4F1",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  ecoPointsCard: {
-    marginHorizontal: 20,
-    marginBottom: 24,
-    padding: 24,
-    backgroundColor: "#047857",
-    borderRadius: 24,
-    shadowColor: "#047857",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  ecoPointsHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-    marginBottom: 12,
-  },
-  ecoPointsIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: "rgba(255, 255, 255, 0.2)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  ecoPointsInfo: {
-    flex: 1,
-  },
-  ecoPointsLabel: {
-    fontSize: 14,
-    color: "rgba(255, 255, 255, 0.9)",
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  ecoPointsValue: {
-    fontSize: 32,
-    fontWeight: "800",
-    color: "#fff",
-    letterSpacing: -1,
-  },
-  ecoPointsSubtext: {
-    fontSize: 14,
-    color: "rgba(255, 255, 255, 0.85)",
-    lineHeight: 20,
-  },
-  carbonFootprintCard: {
-    marginHorizontal: 20,
-    marginBottom: 24,
-    padding: 20,
-    backgroundColor: "#fff",
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: "#E6F4F1",
-    shadowColor: "#047857",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 5,
-  },
-  carbonFootprintHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-    marginBottom: 16,
-  },
-  carbonFootprintIconContainer: {
-    width: 52,
-    height: 52,
-    borderRadius: 14,
-    backgroundColor: "#E6F4F1",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  carbonFootprintInfo: {
-    flex: 1,
-  },
-  carbonFootprintLabel: {
-    fontSize: 13,
-    color: "#64748B",
-    fontWeight: "600",
-    marginBottom: 6,
-  },
-  carbonFootprintScoreRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  carbonFootprintValue: {
     fontSize: 22,
     fontWeight: "800",
-    color: "#1E293B",
-    letterSpacing: -0.5,
-  },
-  impactLevelBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 8,
-  },
-  impactLevelText: {
-    fontSize: 11,
-    fontWeight: "800",
     color: "#fff",
-    letterSpacing: 0.3,
+    marginBottom: 6,
   },
-  carbonFootprintStats: {
-    flexDirection: "row",
-    gap: 16,
-    marginBottom: 14,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: "#F1F5F9",
+  userSubtitle: {
+    color: "rgba(255, 255, 255, 0.82)",
+    fontSize: 14,
+    marginBottom: 12,
   },
-  carbonStat: {
+  heroBadges: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    flexWrap: "wrap",
+    marginBottom: 12,
   },
-  carbonStatText: {
+  editProfileButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    alignSelf: "flex-start",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  editProfileButtonText: {
+    marginLeft: 8,
+    color: "#047857",
+    fontWeight: "700",
+    fontSize: 14,
+  },
+  levelBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.18)",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    marginRight: 10,
+  },
+  levelBadgeText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 13,
+    marginLeft: 6,
+  },
+  roleBadge: {
+    backgroundColor: "rgba(255, 255, 255, 0.12)",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    marginRight: 10,
+  },
+  roleBadgeText: {
+    color: "#E2E8F0",
+    fontWeight: "700",
+    fontSize: 12,
+  },
+  contentSection: {
+    paddingTop: 20,
+  },
+  progressCard: {
+    marginHorizontal: 20,
+    marginBottom: 20,
+    padding: 20,
+    borderRadius: 24,
+    backgroundColor: "#fff",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
+    elevation: 6,
+  },
+  progressHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 16,
+  },
+  progressTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#1E293B",
+  },
+  progressSubtitle: {
+    fontSize: 13,
+    color: "#64748B",
+    marginTop: 4,
+  },
+  progressValue: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: "#047857",
+  },
+  progressBarBackground: {
+    height: 12,
+    borderRadius: 999,
+    backgroundColor: "#E5E7EB",
+    overflow: "hidden",
+    marginBottom: 12,
+  },
+  progressBarFill: {
+    height: "100%",
+    borderRadius: 999,
+    backgroundColor: "#047857",
+  },
+  progressMeta: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  progressMetaText: {
     fontSize: 12,
     color: "#64748B",
     fontWeight: "600",
   },
-  viewHistoryButton: {
+  statRow: {
+    marginHorizontal: 20,
+    marginBottom: 20,
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    padding: 16,
+    marginHorizontal: 6,
+    justifyContent: "center",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.07,
+    shadowRadius: 16,
+    elevation: 4,
+  },
+  statSmallLabel: {
+    fontSize: 13,
+    color: "#64748B",
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+  statLargeValue: {
+    fontSize: 20,
+    fontWeight: "800",
+    color: "#1E293B",
+  },
+  summaryRow: {
+    marginHorizontal: 20,
+    marginBottom: 24,
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  summaryRowSingle: {
+    justifyContent: "center",
+  },
+  summaryCard: {
+    flex: 1,
+    backgroundColor: "#fff",
+    borderRadius: 24,
+    padding: 18,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    elevation: 5,
+  },
+  summaryCardFull: {
+    width: "100%",
+  },
+  summaryIconRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 10,
-    backgroundColor: "#F8F9FE",
-    borderRadius: 12,
+    marginBottom: 12,
   },
-  viewHistoryText: {
+  summaryTitle: {
     fontSize: 14,
+    color: "#64748B",
     fontWeight: "700",
-    color: "#047857",
+    marginLeft: 10,
+  },
+  summaryValue: {
+    fontSize: 28,
+    fontWeight: "800",
+    color: "#1E293B",
+    marginBottom: 8,
+  },
+  summaryCaption: {
+    fontSize: 13,
+    color: "#64748B",
+    lineHeight: 20,
+  },
+  carbonFootprintValueCard: {
+    fontSize: 24,
+    fontWeight: "800",
+    color: "#1E293B",
+    marginBottom: 14,
+  },
+  carbonCardChips: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+  },
+  carbonChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EEF2FF",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 999,
+    marginBottom: 8,
+    marginRight: 10,
+  },
+  carbonChipText: {
+    fontSize: 12,
+    color: "#475569",
+    fontWeight: "600",
+  },
+  impactLevelBadge: {
+    alignSelf: "flex-start",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    marginTop: 8,
+  },
+  impactLevelText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#fff",
   },
   section: {
     marginBottom: 24,
@@ -1237,48 +1294,70 @@ const styles = StyleSheet.create({
     color: "#1E293B",
     letterSpacing: -0.3,
   },
+  sectionSubtitle: {
+    fontSize: 12,
+    color: "#64748B",
+    marginTop: 2,
+  },
   seeAllText: {
     fontSize: 14,
     fontWeight: "600",
     color: "#047857",
   },
-  postCount: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#64748B",
-  },
-  achievementsGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
+  achievementsScroll: {
+    paddingVertical: 4,
+    paddingLeft: 20,
+    paddingRight: 20,
   },
   achievementCard: {
-    width: "31%",
-    aspectRatio: 1,
+    width: 140,
+    minHeight: 140,
     backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 12,
-    alignItems: "center",
+    borderRadius: 24,
+    padding: 16,
+    marginRight: 12,
     justifyContent: "center",
+    alignItems: "center",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 18,
+    elevation: 4,
   },
-  achievementLocked: {
-    opacity: 0.6,
+  achievementCardExpanded: {
+    width: 180,
+    minHeight: 200,
+  },
+  achievementCardActive: {
+    borderWidth: 1,
+    borderColor: "rgba(4, 120, 87, 0.15)",
+  },
+  achievementCardLocked: {
+    opacity: 0.65,
+    backgroundColor: "#F8FAFC",
+  },
+  achievementBadgeImage: {
+    width: 80,
+    height: 80,
+    marginBottom: 12,
+  },
+  achievementIconPlaceholder: {
+    width: 80,
+    height: 80,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
   },
   achievementIcon: {
     width: 56,
     height: 56,
-    borderRadius: 16,
+    borderRadius: 18,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: 12,
   },
   achievementTitle: {
-    fontSize: 11,
+    fontSize: 14,
     fontWeight: "700",
     color: "#1E293B",
     textAlign: "center",
@@ -1286,15 +1365,56 @@ const styles = StyleSheet.create({
   achievementTitleLocked: {
     color: "#94A3B8",
   },
+  achievementDescription: {
+    fontSize: 12,
+    color: "#64748B",
+    textAlign: "center",
+    marginTop: 8,
+    marginBottom: 8,
+    lineHeight: 18,
+  },
+  achievementDescriptionLocked: {
+    color: "#CBD5E1",
+  },
+  achievementStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ECFDF5",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    marginTop: 8,
+  },
+  achievementStatusText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#047857",
+    marginLeft: 4,
+  },
+  achievementStatusLocked: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F1F5F9",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    marginTop: 8,
+  },
+  achievementStatusTextLocked: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#94A3B8",
+    marginLeft: 4,
+  },
   postsGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 8,
+    justifyContent: "space-between",
   },
   postCard: {
     width: "32%",
     aspectRatio: 1,
-    borderRadius: 12,
+    borderRadius: 16,
     overflow: "hidden",
     backgroundColor: "#E2E8F0",
   },
@@ -1313,52 +1433,36 @@ const styles = StyleSheet.create({
   postStats: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
   },
   postStatText: {
     fontSize: 12,
     fontWeight: "700",
     color: "#fff",
-  },
-  deleteButton: {
-    position: "absolute",
-    top: 6,
-    right: 6,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "rgba(239, 68, 68, 0.9)",
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
+    marginLeft: 4,
   },
   statusBadge: {
     position: "absolute",
-    top: 6,
-    left: 6,
+    top: 8,
+    left: 8,
     flexDirection: "row",
     alignItems: "center",
-    gap: 3,
     backgroundColor: "rgba(255, 255, 255, 0.95)",
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 10,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
     elevation: 2,
-    maxWidth: "70%", // Prevent overflow
+    maxWidth: "70%",
   },
   statusBadgeText: {
-    fontSize: 9,
+    fontSize: 10,
     fontWeight: "700",
     color: "#F59E0B",
     letterSpacing: 0.1,
+    marginLeft: 4,
   },
   statusBadgeRejected: {
     backgroundColor: "rgba(254, 242, 242, 0.95)",
@@ -1371,6 +1475,17 @@ const styles = StyleSheet.create({
   },
   statusBadgeTextError: {
     color: "#DC2626",
+  },
+  deleteButton: {
+    position: "absolute",
+    top: 10,
+    right: 10,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "rgba(239, 68, 68, 0.95)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   emptyState: {
     alignItems: "center",
@@ -1389,7 +1504,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   bottomPadding: {
-    height: 100,
+    height: 90,
   },
   modalOverlay: {
     flex: 1,
@@ -1450,7 +1565,6 @@ const styles = StyleSheet.create({
   datePickerButton: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
     backgroundColor: "#F8FAFC",
     borderWidth: 2,
     borderColor: "#E2E8F0",
@@ -1463,10 +1577,10 @@ const styles = StyleSheet.create({
     color: "#1E293B",
     fontWeight: "600",
     flex: 1,
+    marginLeft: 12,
   },
   modalFooter: {
     flexDirection: "row",
-    gap: 12,
     paddingHorizontal: 24,
     paddingVertical: 20,
     borderTopWidth: 1,
@@ -1478,6 +1592,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: "#F1F5F9",
     alignItems: "center",
+    marginRight: 12,
   },
   cancelButtonText: {
     fontSize: 16,
