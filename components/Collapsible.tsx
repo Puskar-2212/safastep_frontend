@@ -1,3 +1,4 @@
+// Simple expandable section used for collapsible content blocks.
 import { PropsWithChildren, useState } from 'react';
 import { StyleSheet, TouchableOpacity } from 'react-native';
 

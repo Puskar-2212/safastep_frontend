@@ -1,3 +1,4 @@
+// Small animated wave used in welcome-style UI sections.
 import { useEffect } from 'react';
 import { StyleSheet } from 'react-native';
 import Animated, {

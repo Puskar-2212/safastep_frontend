@@ -1,3 +1,4 @@
+// Custom tab button that adds haptic feedback when the bottom tab is pressed.
 import { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
 import { PlatformPressable } from '@react-navigation/elements';
 import * as Haptics from 'expo-haptics';

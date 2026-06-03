@@ -1,3 +1,4 @@
+// Reusable scroll container with a parallax header effect for themed screens.
 import type { PropsWithChildren, ReactElement } from 'react';
 import { StyleSheet } from 'react-native';
 import Animated, {

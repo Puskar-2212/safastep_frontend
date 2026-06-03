@@ -1,3 +1,4 @@
+// Cross-platform icon wrapper that mimics SF Symbols names where possible.
 // Fallback for using MaterialIcons on Android and web.
 
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';

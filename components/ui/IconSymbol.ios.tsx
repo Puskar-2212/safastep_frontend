@@ -1,3 +1,4 @@
+// Native iOS SF Symbols wrapper used by themed starter components.
 import { SymbolView, SymbolViewProps, SymbolWeight } from 'expo-symbols';
 import { StyleProp, ViewStyle } from 'react-native';
 

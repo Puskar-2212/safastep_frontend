@@ -1,3 +1,4 @@
+// Text component that automatically switches colors with the active theme.
 import { StyleSheet, Text, type TextProps } from 'react-native';
 
 import { useThemeColor } from '@/hooks/useThemeColor';

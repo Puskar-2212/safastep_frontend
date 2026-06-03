@@ -1,3 +1,4 @@
+// OTP verification screen used for mobile registration and PIN recovery flows.
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {

@@ -1,3 +1,4 @@
+// Registration screen for creating either a mobile-based or email-based SafaStep account.
 import { MaterialIcons } from "@expo/vector-icons";
 import { Link, useRouter } from "expo-router";
 import React, { useState } from "react";

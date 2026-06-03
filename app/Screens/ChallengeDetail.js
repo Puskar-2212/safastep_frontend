@@ -1,3 +1,4 @@
+// Per-user challenge detail screen for daily check-ins, progress, and reward claiming.
 import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -12,24 +13,46 @@ import {
     TextInput,
     View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import ActionDialog from "../../components/ui/ActionDialog";
+import LoadingOverlay from "../../components/ui/LoadingOverlay";
+import RestrictionModal from "../../components/ui/RestrictionModal";
 import { BASE_URL } from "../config";
 
 export default function ChallengeDetail() {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [challenge, setChallenge] = useState(null);
   const [note, setNote] = useState("");
   const [checkingIn, setCheckingIn] = useState(false);
   const [claiming, setClaiming] = useState(false);
+  const [restrictionMessage, setRestrictionMessage] = useState("");
+  const [showRestrictionModal, setShowRestrictionModal] = useState(false);
+  const [confirmCheckInVisible, setConfirmCheckInVisible] = useState(false);
+  const [confirmClaimVisible, setConfirmClaimVisible] = useState(false);
+  const [statusDialog, setStatusDialog] = useState({
+    visible: false,
+    title: "",
+    message: "",
+    variant: "info",
+  });
 
   useEffect(() => {
     loadChallengeDetail();
   }, []);
 
+  const getStoredIdentifier = async () => {
+    // This keeps challenge actions compatible with both email and mobile accounts.
+    const email = await AsyncStorage.getItem("email");
+    const mobile = await AsyncStorage.getItem("mobile");
+    return email || mobile;
+  };
+
   const loadChallengeDetail = async () => {
     try {
-      const identifier = await AsyncStorage.getItem("mobile");
+      const identifier = await getStoredIdentifier();
 
       if (!identifier) {
         Alert.alert("Error", "User not logged in");
@@ -43,6 +66,7 @@ export default function ChallengeDetail() {
         return;
       }
 
+      // The detail screen reuses the user's challenge list and then finds the selected record by its id.
       const response = await fetch(
         `${BASE_URL}/challenges/my-challenges?user_id=${identifier}`,
       );
@@ -71,16 +95,18 @@ export default function ChallengeDetail() {
 
   const handleCheckIn = async () => {
     if (!canCheckInToday()) {
-      Alert.alert(
-        "Info",
-        "You've already checked in today or it's not time yet!",
-      );
+      setStatusDialog({
+        visible: true,
+        title: "Check-in unavailable",
+        message: "You have already checked in today, or today's check-in is not available yet.",
+        variant: "info",
+      });
       return;
     }
 
     setCheckingIn(true);
     try {
-      const identifier = await AsyncStorage.getItem("mobile");
+      const identifier = await getStoredIdentifier();
 
       if (!identifier) {
         Alert.alert("Error", "User not logged in");
@@ -88,6 +114,7 @@ export default function ChallengeDetail() {
         return;
       }
 
+      // Notes are optional, so only append them when the user actually wrote something.
       const formData = new FormData();
       formData.append("user_id", identifier);
       if (note.trim()) {
@@ -105,24 +132,48 @@ export default function ChallengeDetail() {
       const data = await response.json();
 
       if (data.success) {
-        Alert.alert("Success! 🎉", data.message);
         setNote("");
+        // Reload to pull the updated streak, checked-in day, and completion status from the backend.
         await loadChallengeDetail();
+        setStatusDialog({
+          visible: true,
+          title: "Check-in recorded",
+          message: data.message || "Today's progress was saved.",
+          variant: "success",
+        });
       } else {
-        Alert.alert("Info", data.message);
+        if (response.status === 403) {
+          setRestrictionMessage(
+            data.detail || "Your account is banned from participating in challenges.",
+          );
+          setShowRestrictionModal(true);
+        } else {
+          setStatusDialog({
+            visible: true,
+            title: "Unable to check in",
+            message: data.detail || data.message || "Please try again.",
+            variant: "info",
+          });
+        }
       }
     } catch (error) {
       console.error("Error checking in:", error);
-      Alert.alert("Error", "Failed to check in. Please try again.");
+      setStatusDialog({
+        visible: true,
+        title: "Unable to check in",
+        message: "Failed to check in. Please try again.",
+        variant: "error",
+      });
     } finally {
       setCheckingIn(false);
+      setConfirmCheckInVisible(false);
     }
   };
 
   const handleClaimReward = async () => {
     setClaiming(true);
     try {
-      const identifier = await AsyncStorage.getItem("mobile");
+      const identifier = await getStoredIdentifier();
 
       if (!identifier) {
         Alert.alert("Error", "User not logged in");
@@ -130,6 +181,7 @@ export default function ChallengeDetail() {
         return;
       }
 
+      // Claiming is a backend state change because eco points are added to the user's stored profile.
       const formData = new FormData();
       formData.append("user_id", identifier);
 
@@ -144,26 +196,64 @@ export default function ChallengeDetail() {
       const data = await response.json();
 
       if (data.success) {
-        Alert.alert("Reward Claimed! 🎉", data.message, [
-          {
-            text: "OK",
-            onPress: () => router.back(),
-          },
-        ]);
+        setStatusDialog({
+          visible: true,
+          title: "Reward claimed",
+          message:
+            data.message ||
+            `${challenge.reward_points} Eco Points were added to your account.`,
+          variant: "success",
+        });
+        await loadChallengeDetail();
       } else {
-        Alert.alert("Info", data.message);
+        if (response.status === 403) {
+          setRestrictionMessage(
+            data.detail || "Your account is banned from participating in challenges.",
+          );
+          setShowRestrictionModal(true);
+        } else {
+          setStatusDialog({
+            visible: true,
+            title: "Unable to claim reward",
+            message: data.detail || data.message || "Please try again.",
+            variant: "info",
+          });
+        }
       }
     } catch (error) {
       console.error("Error claiming reward:", error);
-      Alert.alert("Error", "Failed to claim reward. Please try again.");
+      setStatusDialog({
+        visible: true,
+        title: "Unable to claim reward",
+        message: "Failed to claim reward. Please try again.",
+        variant: "error",
+      });
     } finally {
       setClaiming(false);
+      setConfirmClaimVisible(false);
+    }
+  };
+
+  const closeStatusDialog = () => {
+    const shouldGoBack =
+      statusDialog.visible && statusDialog.title === "Reward claimed";
+
+    setStatusDialog({
+      visible: false,
+      title: "",
+      message: "",
+      variant: "info",
+    });
+
+    if (shouldGoBack) {
+      router.back();
     }
   };
 
   const canCheckInToday = () => {
     if (!challenge) return false;
 
+    // The backend stores a day-by-day check_ins array, so the UI checks today's slot before enabling the action.
     const today = new Date().toISOString().split("T")[0];
     const todayCheckIn = challenge.check_ins.find((c) => c.date === today);
 
@@ -208,7 +298,12 @@ export default function ChallengeDetail() {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
+      <View
+        style={[
+          styles.header,
+          { paddingTop: Math.max(insets.top + 10, 50) },
+        ]}
+      >
         <Pressable style={styles.backButton} onPress={() => router.back()}>
           <MaterialIcons name="arrow-back" size={24} color="#111827" />
         </Pressable>
@@ -216,7 +311,11 @@ export default function ChallengeDetail() {
         <View style={styles.placeholder} />
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom + 20, 20) }}
+      >
         {/* Challenge Info */}
         <View style={styles.infoCard}>
           <Text style={styles.challengeTitle}>{challenge.challenge_title}</Text>
@@ -303,7 +402,7 @@ export default function ChallengeDetail() {
                 "You missed too many days to continue this challenge."}
             </Text>
             <Text style={styles.failedNote}>
-              Don't worry! You can always start a new challenge.
+              Don&apos;t worry! You can always start a new challenge.
             </Text>
           </View>
         )}
@@ -315,7 +414,7 @@ export default function ChallengeDetail() {
             <View style={styles.checkInCard}>
               <Text style={styles.sectionTitle}>Check In for Today</Text>
               <Text style={styles.checkInSubtitle}>
-                Did you complete today's challenge?
+                Did you complete today&apos;s challenge?
               </Text>
 
               <TextInput
@@ -333,7 +432,7 @@ export default function ChallengeDetail() {
                   styles.checkInButton,
                   checkingIn && styles.buttonDisabled,
                 ]}
-                onPress={handleCheckIn}
+                onPress={() => setConfirmCheckInVisible(true)}
                 disabled={checkingIn}
               >
                 {checkingIn ? (
@@ -354,9 +453,9 @@ export default function ChallengeDetail() {
           challenge.status !== "claimed" && (
             <View style={styles.rewardCard}>
               <MaterialIcons name="celebration" size={48} color="#F59E0B" />
-              <Text style={styles.congratsText}>Congratulations! 🎉</Text>
+              <Text style={styles.congratsText}>Congratulations</Text>
               <Text style={styles.congratsSubtext}>
-                You've completed the challenge!
+                You&apos;ve completed the challenge!
               </Text>
 
               <View style={styles.rewardBadge}>
@@ -368,7 +467,7 @@ export default function ChallengeDetail() {
 
               <Pressable
                 style={[styles.claimButton, claiming && styles.buttonDisabled]}
-                onPress={handleClaimReward}
+                onPress={() => setConfirmClaimVisible(true)}
                 disabled={claiming}
               >
                 {claiming ? (
@@ -425,6 +524,65 @@ export default function ChallengeDetail() {
           )}
         </View>
       </ScrollView>
+
+      <RestrictionModal
+        visible={showRestrictionModal}
+        title="Challenges Restricted"
+        message={restrictionMessage}
+        icon="emoji-events"
+        onClose={() => setShowRestrictionModal(false)}
+      />
+
+      <ActionDialog
+        visible={confirmCheckInVisible}
+        title="Submit check-in?"
+        message={
+          note.trim()
+            ? `Your note will be saved with today's entry.`
+            : "Today's entry will be marked as completed."
+        }
+        variant="confirm"
+        confirmLabel="Check In"
+        cancelLabel="Cancel"
+        onClose={() => setConfirmCheckInVisible(false)}
+        onConfirm={handleCheckIn}
+        confirmDisabled={checkingIn}
+      />
+
+      <ActionDialog
+        visible={confirmClaimVisible}
+        title="Claim reward?"
+        message={`${challenge.reward_points} Eco Points will be added to your account.`}
+        variant="confirm"
+        confirmLabel="Claim Points"
+        cancelLabel="Not now"
+        onClose={() => setConfirmClaimVisible(false)}
+        onConfirm={handleClaimReward}
+        confirmDisabled={claiming}
+      />
+
+      <ActionDialog
+        visible={statusDialog.visible}
+        title={statusDialog.title}
+        message={statusDialog.message}
+        variant={statusDialog.variant}
+        confirmLabel="Got it"
+        showCancelButton={false}
+        onClose={closeStatusDialog}
+        onConfirm={closeStatusDialog}
+      />
+
+      <LoadingOverlay
+        visible={checkingIn}
+        title="Saving check-in"
+        message="This may take a moment."
+      />
+
+      <LoadingOverlay
+        visible={claiming}
+        title="Claiming reward"
+        message="This may take a moment."
+      />
     </View>
   );
 }

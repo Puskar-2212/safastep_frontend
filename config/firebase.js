@@ -1,3 +1,4 @@
+// Firebase client setup for email-based authentication flows in the mobile app.
 import { initializeApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 

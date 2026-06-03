@@ -1,3 +1,4 @@
+// Central frontend API base URL so screens call the same backend origin.
 // config.js
 // Paste your ngrok URL here every time you run ngrok
 export const BASE_URL = "https://fulgorous-unhandsome-katia.ngrok-free.dev";

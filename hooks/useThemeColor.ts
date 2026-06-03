@@ -1,3 +1,4 @@
+// Resolves the correct themed color token for light and dark mode aware components.
 /**
  * Learn more about light and dark modes:
  * https://docs.expo.dev/guides/color-schemes/
