@@ -1,3 +1,4 @@
+// Privacy and security settings screen for password/PIN and account deletion controls.
 import React, { useState } from "react";
 import {
   View,
@@ -17,9 +18,11 @@ import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { BASE_URL } from "../../constants/config";
 import { changePassword } from "../../utils/firebaseAuth";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const PrivacySecurity = () => {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [userIdentifier, setUserIdentifier] = useState(null);
   const [isEmailUser, setIsEmailUser] = useState(false);
   const [changePinModalVisible, setChangePinModalVisible] = useState(false);
@@ -41,9 +44,13 @@ const PrivacySecurity = () => {
   // Check if user is email or mobile user
   React.useEffect(() => {
     const checkUserType = async () => {
-      const identifier = await AsyncStorage.getItem("mobile");
+      // Email users are stored under "email" and mobile users under "mobile",
+      // so this screen must check both before deciding which security action to show.
+      const email = await AsyncStorage.getItem("email");
+      const mobile = await AsyncStorage.getItem("mobile");
+      const identifier = email || mobile;
       setUserIdentifier(identifier);
-      setIsEmailUser(identifier?.includes('@'));
+      setIsEmailUser(Boolean(email));
     };
     checkUserType();
   }, []);
@@ -149,7 +156,11 @@ const PrivacySecurity = () => {
 
     setLoading(true);
 
-    const result = await changePassword(currentPassword, newPassword);
+    const result = await changePassword(
+      currentPassword,
+      newPassword,
+      isEmailUser ? userIdentifier : null,
+    );
     setLoading(false);
 
     if (result.success) {
@@ -222,7 +233,12 @@ const PrivacySecurity = () => {
     >
       <View style={styles.container}>
         {/* Header */}
-        <View style={styles.header}>
+        <View
+          style={[
+            styles.header,
+            { paddingTop: Math.max(insets.top + 10, 50) },
+          ]}
+        >
           <Pressable style={styles.backButton} onPress={() => router.back()}>
             <MaterialIcons name="arrow-back" size={24} color="#fff" />
           </Pressable>
@@ -234,6 +250,7 @@ const PrivacySecurity = () => {
           style={styles.content}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ paddingBottom: Math.max(insets.bottom + 20, 20) }}
         >
           {/* Security Section */}
           <View style={styles.section}>
@@ -245,8 +262,8 @@ const PrivacySecurity = () => {
                   onPress={() => setChangePasswordModalVisible(true)}
                 >
                   <View style={styles.itemLeft}>
-                    <View style={[styles.iconContainer, { backgroundColor: "#EDE9FE" }]}>
-                      <MaterialIcons name="lock" size={22} color="#8B5CF6" />
+                    <View style={[styles.iconContainer, { backgroundColor: "#E8F7F0" }]}>
+                      <MaterialIcons name="lock" size={22} color="#0C8A4B" />
                     </View>
                     <View style={styles.itemTextContainer}>
                       <Text style={styles.itemLabel}>Change Password</Text>
@@ -263,8 +280,8 @@ const PrivacySecurity = () => {
                   onPress={() => setChangePinModalVisible(true)}
                 >
                   <View style={styles.itemLeft}>
-                    <View style={[styles.iconContainer, { backgroundColor: "#EDE9FE" }]}>
-                      <MaterialIcons name="lock" size={22} color="#8B5CF6" />
+                    <View style={[styles.iconContainer, { backgroundColor: "#E8F7F0" }]}>
+                      <MaterialIcons name="lock" size={22} color="#0C8A4B" />
                     </View>
                     <View style={styles.itemTextContainer}>
                       <Text style={styles.itemLabel}>Change PIN</Text>
@@ -591,7 +608,7 @@ const PrivacySecurity = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8F9FE",
+    backgroundColor: "#F8F9FA",
   },
   header: {
     flexDirection: "row",
@@ -600,8 +617,8 @@ const styles = StyleSheet.create({
     paddingTop: 50,
     paddingBottom: 20,
     paddingHorizontal: 20,
-    backgroundColor: "#8B5CF6",
-    shadowColor: "#8B5CF6",
+    backgroundColor: "#0C8A4B",
+    shadowColor: "#0C8A4B",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 12,
@@ -634,7 +651,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 13,
     fontWeight: "800",
-    color: "#8B5CF6",
+    color: "#0C8A4B",
     marginBottom: 14,
     marginLeft: 4,
     textTransform: "uppercase",
@@ -644,11 +661,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderRadius: 20,
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.06,
+    shadowRadius: 14,
+    elevation: 4,
   },
   dangerCard: {
     backgroundColor: "#fff",
@@ -657,10 +676,10 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#FEE2E2",
     shadowColor: "#EF4444",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 4,
   },
   item: {
     flexDirection: "row",
@@ -714,6 +733,8 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 24,
     padding: 24,
     maxHeight: "85%",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
   },
   modalHeader: {
     flexDirection: "row",
@@ -767,19 +788,19 @@ const styles = StyleSheet.create({
   infoText: {
     flex: 1,
     fontSize: 13,
-    color: "#4F46E5",
+    color: "#166534",
     lineHeight: 18,
     fontWeight: "500",
   },
   button: {
-    backgroundColor: "#8B5CF6",
+    backgroundColor: "#0C8A4B",
     height: 56,
     borderRadius: 14,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    shadowColor: "#8B5CF6",
+    shadowColor: "#0C8A4B",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,

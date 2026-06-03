@@ -1,3 +1,4 @@
+// Login screen supporting both mobile PIN auth and Firebase email sign-in.
 import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
@@ -76,30 +77,31 @@ const LoginPage = () => {
   ];
 
   const motivationalMessages = [
-    "🌱 Every step towards a greener planet counts",
-    "🌍 Small actions, massive impact on carbon reduction",
-    "♻️ Your journey to sustainability starts here",
-    "🌿 Walk the path to a cleaner tomorrow",
-    "🌳 Together we can reduce our carbon footprint",
-    "💚 Making eco-friendly choices easier every day",
-    "🌎 Join the movement for a sustainable future",
-    "🍃 Track your impact, celebrate your progress",
-    "🌸 Every conscious step creates positive change",
-    "✨ Building a carbon-neutral world, one step at a time",
+    "Every step towards a greener planet counts",
+    "Small actions, massive impact on carbon reduction",
+    "Your journey to sustainability starts here",
+    "Walk the path to a cleaner tomorrow",
+    "Together we can reduce our carbon footprint",
+    "Making eco-friendly choices easier every day",
+    "Join the movement for a sustainable future",
+    "Track your impact and celebrate your progress",
+    "Every conscious step creates positive change",
+    "Building a carbon-neutral world, one step at a time",
   ];
 
   const countryCodes = [
-    { label: "🇳🇵 +977", value: "+977" },
-    { label: "🇺🇸 +1", value: "+1" },
-    { label: "🇬🇧 +44", value: "+44" },
-    { label: "🇮🇳 +91", value: "+91" },
-    { label: "🇨🇳 +86", value: "+86" },
-    { label: "🇫🇷 +33", value: "+33" },
+    { label: "Nepal +977", value: "+977" },
+    { label: "United States +1", value: "+1" },
+    { label: "United Kingdom +44", value: "+44" },
+    { label: "India +91", value: "+91" },
+    { label: "China +86", value: "+86" },
+    { label: "France +33", value: "+33" },
   ];
 
   const router = useRouter();
 
   useEffect(() => {
+    // Randomize the visual mood of the login screen so repeat visits feel less static.
     const randomImageIndex = Math.floor(
       Math.random() * backgroundImages.length,
     );
@@ -111,6 +113,7 @@ const LoginPage = () => {
   }, []);
 
   const handleLogin = async () => {
+    // Mobile login still uses the older PIN-based backend flow.
     if (!phoneNumber || !pin) {
       Alert.alert("Error", "Please fill all the fields.");
       return;
@@ -125,6 +128,7 @@ const LoginPage = () => {
     }
 
     setLoading(true);
+    // The backend stores mobile identifiers with the selected country code prefix.
     const fullPhoneNumber = `${countryCode}${phoneNumber}`;
 
     try {
@@ -141,12 +145,9 @@ const LoginPage = () => {
 
       if (response.ok) {
         setSuccess(true);
+        // Clear any stale email session so the app does not mix identifiers across auth methods.
+        await AsyncStorage.removeItem("email");
         await AsyncStorage.setItem("mobile", fullPhoneNumber);
-
-        // Initialize push notifications
-        pushNotificationService.initialize(fullPhoneNumber).catch((err) => {
-          console.log("Push notification setup failed:", err);
-        });
 
         setTimeout(() => {
           setSuccess(false);
@@ -173,6 +174,7 @@ const LoginPage = () => {
   };
 
   const handleEmailLogin = async () => {
+    // Email login goes through Firebase first, then SafaStep checks whether the user profile still exists.
     if (!email || !password) {
       Alert.alert("Error", "Please enter email and password");
       return;
@@ -194,6 +196,7 @@ const LoginPage = () => {
 
       // Email verified, check if user has profile picture
       try {
+        // This backend lookup keeps deleted or deactivated accounts from entering the app after Firebase sign-in.
         const response = await fetch(
           `${BASE_URL}/user/by-identifier/${result.user.email}`,
         );
@@ -202,9 +205,8 @@ const LoginPage = () => {
         setLoading(false);
 
         if (response.ok && userData.success) {
-          // Check if user has profile picture
+          // Profile setup is considered incomplete until the user uploads a profile picture.
           if (!userData.user.profilePicture) {
-            // No profile picture, go to ProfileSetup
             router.push({
               pathname: "/Screens/ProfileSetup",
               params: {
@@ -213,9 +215,10 @@ const LoginPage = () => {
               },
             });
           } else {
-            // Has profile picture, proceed to homepage
             setSuccess(true);
-            await AsyncStorage.setItem("mobile", result.user.email);
+            // Clear any stale phone session so email-based data loads under the correct identifier.
+            await AsyncStorage.removeItem("mobile");
+            await AsyncStorage.setItem("email", result.user.email);
 
             setTimeout(() => {
               router.push({
@@ -224,17 +227,23 @@ const LoginPage = () => {
               });
             }, 1500);
           }
+        } else if (response.status === 404) {
+          await AsyncStorage.multiRemove(["mobile", "email", "hasLoggedInBefore"]);
+          Alert.alert(
+            "Account Removed",
+            "This account no longer exists. Please sign up again or contact support if this was unexpected.",
+          );
+        } else if (response.status === 403) {
+          await AsyncStorage.multiRemove(["mobile", "email", "hasLoggedInBefore"]);
+          Alert.alert(
+            "Account Deactivated",
+            userData.detail || "This account has been deactivated by an administrator.",
+          );
         } else {
-          // User doesn't exist in backend (shouldn't happen), go to homepage anyway
-          setSuccess(true);
-          await AsyncStorage.setItem("mobile", result.user.email);
-
-          setTimeout(() => {
-            router.push({
-              pathname: "/Dashboard/Homepage",
-              params: { mobile: result.user.email },
-            });
-          }, 1500);
+          Alert.alert(
+            "Login Failed",
+            userData.detail || "Unable to load your account. Please try again.",
+          );
         }
       } catch (error) {
         setLoading(false);
@@ -248,6 +257,7 @@ const LoginPage = () => {
   };
 
   const handleForgotPassword = async () => {
+    // Password reset stays in Firebase because the email login credentials live there.
     if (!resetEmail || !resetEmail.includes("@")) {
       Alert.alert("Error", "Please enter a valid email address");
       return;
@@ -263,6 +273,13 @@ const LoginPage = () => {
 
       if (!checkResponse.ok) {
         setLoading(false);
+        if (checkResponse.status === 403) {
+          Alert.alert(
+            "Account Deactivated",
+            "This account has been deactivated by an administrator.",
+          );
+          return;
+        }
         Alert.alert(
           "Error",
           "This email is not registered. Please sign up first.",

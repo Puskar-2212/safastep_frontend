@@ -1,3 +1,4 @@
+// Challenge listing screen that shows available, locked, active, and completed challenge states.
 import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
@@ -12,24 +13,50 @@ import {
     Text,
     View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import ActionDialog from "../../components/ui/ActionDialog";
+import LoadingOverlay from "../../components/ui/LoadingOverlay";
+import RestrictionModal from "../../components/ui/RestrictionModal";
 import { BASE_URL } from "../config";
+
+const PRIMARY_GREEN = "#047857";
+const PRIMARY_GREEN_SOFT = "#E8F7F0";
+const PRIMARY_GREEN_BORDER = "#CFEFE3";
 
 export default function Challenges() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [availableChallenges, setAvailableChallenges] = useState([]);
   const [myChallenges, setMyChallenges] = useState([]);
   const [activeTab, setActiveTab] = useState("available");
   const [selectedDifficulty, setSelectedDifficulty] = useState("all");
+  const [restrictionMessage, setRestrictionMessage] = useState("");
+  const [showRestrictionModal, setShowRestrictionModal] = useState(false);
+  const [pendingAcceptChallenge, setPendingAcceptChallenge] = useState(null);
+  const [acceptingChallengeId, setAcceptingChallengeId] = useState(null);
+  const [statusDialog, setStatusDialog] = useState({
+    visible: false,
+    title: "",
+    message: "",
+    variant: "info",
+  });
 
   useEffect(() => {
     loadChallenges();
   }, []);
 
+  const getStoredIdentifier = async () => {
+    // Challenge APIs accept a generic user_id, so we resolve the active email or mobile session here.
+    const email = await AsyncStorage.getItem("email");
+    const mobile = await AsyncStorage.getItem("mobile");
+    return email || mobile;
+  };
+
   const loadChallenges = async () => {
     try {
-      const identifier = await AsyncStorage.getItem("mobile");
+      const identifier = await getStoredIdentifier();
 
       if (!identifier) {
         Alert.alert("Error", "User not logged in");
@@ -38,7 +65,7 @@ export default function Challenges() {
         return;
       }
 
-      // Load available challenges
+      // First request: challenge templates the user can start or is currently locked from restarting.
       const availableResponse = await fetch(
         `${BASE_URL}/challenges/daily-checkin?user_id=${identifier}`,
       );
@@ -48,7 +75,7 @@ export default function Challenges() {
         setAvailableChallenges(availableData.challenges || []);
       }
 
-      // Load user's challenges
+      // Second request: the user's own active, completed, claimed, or failed challenge records.
       const myResponse = await fetch(
         `${BASE_URL}/challenges/my-challenges?user_id=${identifier}`,
       );
@@ -65,15 +92,22 @@ export default function Challenges() {
       setRefreshing(false);
     }
   };
+  const closeStatusDialog = () => {
+    setStatusDialog((current) => ({ ...current, visible: false }));
+  };
+
   const handleAcceptChallenge = async (challengeId) => {
     try {
-      const identifier = await AsyncStorage.getItem("mobile");
+      const identifier = await getStoredIdentifier();
 
       if (!identifier) {
         Alert.alert("Error", "User not logged in");
         return;
       }
 
+      setAcceptingChallengeId(challengeId);
+
+      // Backend expects multipart form data for this mutation and creates the user_challenge record.
       const formData = new FormData();
       formData.append("user_id", identifier);
 
@@ -88,21 +122,41 @@ export default function Challenges() {
       const data = await response.json();
 
       if (data.success) {
-        Alert.alert("Success!", data.message, [
-          {
-            text: "OK",
-            onPress: () => {
-              loadChallenges();
-              setActiveTab("my-challenges");
-            },
-          },
-        ]);
+        // Reload both lists so the accepted challenge immediately moves from Available to Active.
+        await loadChallenges();
+        setActiveTab("my-challenges");
+        setStatusDialog({
+          visible: true,
+          title: "Challenge added",
+          message: data.message || "It is now in your active challenges.",
+          variant: "success",
+        });
       } else {
-        Alert.alert("Info", data.message);
+        if (response.status === 403) {
+          setRestrictionMessage(
+            data.detail || "Your account is banned from participating in challenges.",
+          );
+          setShowRestrictionModal(true);
+        } else {
+          setStatusDialog({
+            visible: true,
+            title: "Unable to start challenge",
+            message: data.detail || data.message || "Please try again.",
+            variant: "info",
+          });
+        }
       }
     } catch (error) {
       console.error("Error accepting challenge:", error);
-      Alert.alert("Error", "Failed to accept challenge. Please try again.");
+      setStatusDialog({
+        visible: true,
+        title: "Unable to start challenge",
+        message: "Failed to accept challenge. Please try again.",
+        variant: "error",
+      });
+    } finally {
+      setAcceptingChallengeId(null);
+      setPendingAcceptChallenge(null);
     }
   };
 
@@ -114,13 +168,13 @@ export default function Challenges() {
   const getDifficultyColor = (difficulty) => {
     switch (difficulty) {
       case "easy":
-        return "#10B981";
+        return PRIMARY_GREEN;
       case "medium":
         return "#F59E0B";
       case "hard":
         return "#EF4444";
       default:
-        return "#10B981";
+        return PRIMARY_GREEN;
     }
   };
 
@@ -142,10 +196,35 @@ export default function Challenges() {
     return iconMap[challengeId] || "flag";
   };
 
+  const tabItems = [
+    {
+      key: "available",
+      label: "Available",
+      count: availableChallenges.filter((c) => !c.in_cooldown).length,
+    },
+    {
+      key: "locked",
+      label: "Locked",
+      count: availableChallenges.filter((c) => c.in_cooldown).length,
+    },
+    {
+      key: "my-challenges",
+      label: "Active",
+      count: myChallenges.filter((c) => c.status === "in_progress").length,
+    },
+    {
+      key: "history",
+      label: "History",
+      count: myChallenges.filter(
+        (c) => c.status === "claimed" || c.status === "completed",
+      ).length,
+    },
+  ];
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#10B981" />
+        <ActivityIndicator size="large" color={PRIMARY_GREEN} />
         <Text style={styles.loadingText}>Loading challenges...</Text>
       </View>
     );
@@ -153,7 +232,12 @@ export default function Challenges() {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
+      <View
+        style={[
+          styles.header,
+          { paddingTop: Math.max(insets.top + 10, 50) },
+        ]}
+      >
         <Pressable style={styles.backButton} onPress={() => router.back()}>
           <MaterialIcons name="arrow-back" size={24} color="#111827" />
         </Pressable>
@@ -161,74 +245,46 @@ export default function Challenges() {
         <View style={styles.placeholder} />
       </View>
 
-      {/* Tabs */}
-      <View style={styles.tabs}>
-        <Pressable
-          style={[styles.tab, activeTab === "available" && styles.activeTab]}
-          onPress={() => setActiveTab("available")}
+      <View style={styles.tabsSection}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tabs}
         >
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === "available" && styles.activeTabText,
-            ]}
-          >
-            Available
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[styles.tab, activeTab === "locked" && styles.activeTab]}
-          onPress={() => setActiveTab("locked")}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === "locked" && styles.activeTabText,
-            ]}
-          >
-            Locked ({availableChallenges.filter((c) => c.in_cooldown).length})
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[
-            styles.tab,
-            activeTab === "my-challenges" && styles.activeTab,
-          ]}
-          onPress={() => setActiveTab("my-challenges")}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === "my-challenges" && styles.activeTabText,
-            ]}
-          >
-            Active (
-            {myChallenges.filter((c) => c.status === "in_progress").length})
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[styles.tab, activeTab === "history" && styles.activeTab]}
-          onPress={() => setActiveTab("history")}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === "history" && styles.activeTabText,
-            ]}
-          >
-            History (
-            {
-              myChallenges.filter(
-                (c) => c.status === "claimed" || c.status === "completed",
-              ).length
-            }
-            )
-          </Text>
-        </Pressable>
+          {tabItems.map((tab) => {
+            const isActive = activeTab === tab.key;
+            return (
+              <Pressable
+                key={tab.key}
+                style={[styles.tabPill, isActive && styles.activeTabPill]}
+                onPress={() => setActiveTab(tab.key)}
+              >
+                <Text
+                  style={[styles.tabPillText, isActive && styles.activeTabPillText]}
+                >
+                  {tab.label}
+                </Text>
+                <View
+                  style={[styles.tabCount, isActive && styles.activeTabCount]}
+                >
+                  <Text
+                    style={[
+                      styles.tabCountText,
+                      isActive && styles.activeTabCountText,
+                    ]}
+                  >
+                    {tab.count}
+                  </Text>
+                </View>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
       </View>
 
       <ScrollView
         style={styles.content}
+        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom + 20, 20) }}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
@@ -321,19 +377,29 @@ export default function Challenges() {
                       </Text>
                     </View>
                   ) : (
-                    <View style={styles.challengesGrid}>
+                    <View style={styles.challengeStack}>
                       {filteredChallenges.map((challenge) => (
                         <View
                           key={challenge.challenge_id}
                           style={styles.challengeCard}
                         >
                           <View style={styles.cardHeader}>
-                            <View style={styles.iconContainer}>
-                              <MaterialIcons
-                                name={getChallengeIcon(challenge.challenge_id)}
-                                size={28}
-                                color="#10B981"
-                              />
+                            <View style={styles.cardIntro}>
+                              <View style={styles.iconContainer}>
+                                <MaterialIcons
+                                  name={getChallengeIcon(challenge.challenge_id)}
+                                  size={22}
+                                  color={PRIMARY_GREEN}
+                                />
+                              </View>
+                              <View style={styles.cardTextBlock}>
+                                <Text style={styles.challengeTitle} numberOfLines={2}>
+                                  {challenge.title}
+                                </Text>
+                                <Text style={styles.description} numberOfLines={2}>
+                                  {challenge.description}
+                                </Text>
+                              </View>
                             </View>
                             <View
                               style={[
@@ -350,31 +416,22 @@ export default function Challenges() {
                               </Text>
                             </View>
                           </View>
-
-                          <Text style={styles.challengeTitle} numberOfLines={2}>
-                            {challenge.title}
-                          </Text>
-
-                          <Text style={styles.description} numberOfLines={3}>
-                            {challenge.description}
-                          </Text>
-
                           <View style={styles.cardFooter}>
                             <View style={styles.metaInfo}>
-                              <View style={styles.durationInfo}>
+                              <View style={styles.metaChip}>
                                 <MaterialIcons
                                   name="schedule"
-                                  size={16}
+                                  size={14}
                                   color="#6B7280"
                                 />
                                 <Text style={styles.durationText}>
                                   {challenge.duration_days} days
                                 </Text>
                               </View>
-                              <View style={styles.rewardInfo}>
+                              <View style={styles.metaChip}>
                                 <MaterialIcons
                                   name="stars"
-                                  size={16}
+                                  size={14}
                                   color="#F59E0B"
                                 />
                                 <Text style={styles.rewardText}>
@@ -384,12 +441,19 @@ export default function Challenges() {
                             </View>
 
                             <Pressable
-                              style={styles.acceptButton}
-                              onPress={() =>
-                                handleAcceptChallenge(challenge.challenge_id)
-                              }
+                              style={[
+                                styles.acceptButton,
+                                acceptingChallengeId === challenge.challenge_id &&
+                                  styles.buttonDisabled,
+                              ]}
+                              onPress={() => setPendingAcceptChallenge(challenge)}
+                              disabled={acceptingChallengeId === challenge.challenge_id}
                             >
-                              <Text style={styles.acceptButtonText}>Start</Text>
+                              {acceptingChallengeId === challenge.challenge_id ? (
+                                <ActivityIndicator color="#fff" />
+                              ) : (
+                                <Text style={styles.acceptButtonText}>Start challenge</Text>
+                              )}
                             </Pressable>
                           </View>
                         </View>
@@ -421,24 +485,34 @@ export default function Challenges() {
               }
 
               return (
-                <View style={styles.challengesGrid}>
+                <View style={styles.challengeStack}>
                   {lockedChallenges.map((challenge) => (
                     <View
                       key={challenge.challenge_id}
                       style={[styles.challengeCard, styles.lockedCard]}
                     >
                       <View style={styles.cardHeader}>
-                        <View
-                          style={[
-                            styles.iconContainer,
-                            styles.lockedIconContainer,
-                          ]}
-                        >
-                          <MaterialIcons
-                            name={getChallengeIcon(challenge.challenge_id)}
-                            size={28}
-                            color="#9CA3AF"
-                          />
+                        <View style={styles.cardIntro}>
+                          <View
+                            style={[
+                              styles.iconContainer,
+                              styles.lockedIconContainer,
+                            ]}
+                          >
+                            <MaterialIcons
+                              name={getChallengeIcon(challenge.challenge_id)}
+                              size={22}
+                              color="#9CA3AF"
+                            />
+                          </View>
+                          <View style={styles.cardTextBlock}>
+                            <Text style={styles.challengeTitle} numberOfLines={2}>
+                              {challenge.title}
+                            </Text>
+                            <Text style={styles.description} numberOfLines={2}>
+                              {challenge.description}
+                            </Text>
+                          </View>
                         </View>
                         <View style={styles.completedBadge}>
                           <MaterialIcons
@@ -446,17 +520,9 @@ export default function Challenges() {
                             size={12}
                             color="#fff"
                           />
-                          <Text style={styles.completedText}>COMPLETED</Text>
+                          <Text style={styles.completedBadgeText}>COMPLETED</Text>
                         </View>
                       </View>
-
-                      <Text style={styles.challengeTitle} numberOfLines={2}>
-                        {challenge.title}
-                      </Text>
-
-                      <Text style={styles.description} numberOfLines={3}>
-                        {challenge.description}
-                      </Text>
 
                       <View style={styles.cooldownContainer}>
                         <View style={styles.cooldownInfo}>
@@ -472,7 +538,7 @@ export default function Challenges() {
                         </View>
 
                         <View style={styles.progressContainer}>
-                          <View style={styles.progressBar}>
+                          <View style={styles.cooldownProgressTrack}>
                             <View
                               style={[
                                 styles.progressFill,
@@ -482,7 +548,7 @@ export default function Challenges() {
                               ]}
                             />
                           </View>
-                          <Text style={styles.progressText}>
+                          <Text style={styles.cooldownProgressText}>
                             {Math.round(
                               ((7 - challenge.cooldown_days_left) / 7) * 100,
                             )}
@@ -493,7 +559,7 @@ export default function Challenges() {
 
                       <Pressable style={styles.lockedButton} disabled>
                         <MaterialIcons name="lock" size={16} color="#9CA3AF" />
-                        <Text style={styles.lockedButtonText}>Locked</Text>
+                        <Text style={styles.lockedButtonText}>Cooldown active</Text>
                       </Pressable>
                     </View>
                   ))}
@@ -531,14 +597,14 @@ export default function Challenges() {
                           <MaterialIcons
                             name={getChallengeIcon(challenge.challenge_id)}
                             size={28}
-                            color="#10B981"
+                            color={PRIMARY_GREEN}
                           />
                         </View>
                         <View style={styles.cardContent}>
                           <Text style={styles.challengeTitle}>
                             {challenge.challenge_title}
                           </Text>
-                          <Text style={styles.progressText}>
+                          <Text style={styles.streakText}>
                             Day {challenge.current_streak || 0} of{" "}
                             {challenge.target_days}
                           </Text>
@@ -553,7 +619,7 @@ export default function Challenges() {
                       <View style={styles.progressBarContainer}>
                         <View
                           style={[
-                            styles.progressBar,
+                            styles.streakProgressFill,
                             {
                               width: `${Math.min(100, ((challenge.current_streak || 0) / challenge.target_days) * 100)}%`,
                             },
@@ -624,7 +690,7 @@ export default function Challenges() {
                             <MaterialIcons
                               name={getChallengeIcon(challenge.challenge_id)}
                               size={28}
-                              color={isFailed ? "#EF4444" : "#10B981"}
+                              color={isFailed ? "#EF4444" : PRIMARY_GREEN}
                             />
                           </View>
                           <View style={styles.cardContent}>
@@ -635,7 +701,7 @@ export default function Challenges() {
                               style={
                                 isFailed
                                   ? styles.failedText
-                                  : styles.completedText
+                                  : styles.historyCompletedText
                               }
                             >
                               {isFailed
@@ -652,21 +718,21 @@ export default function Challenges() {
                           <MaterialIcons
                             name={isFailed ? "close" : "check-circle"}
                             size={24}
-                            color={isFailed ? "#EF4444" : "#10B981"}
+                            color={isFailed ? "#EF4444" : PRIMARY_GREEN}
                           />
                         </View>
 
                         <View style={styles.progressBarContainer}>
                           <View
                             style={[
-                              styles.progressBar,
+                            styles.streakProgressFill,
                               {
                                 width: isFailed
                                   ? `${Math.min(100, ((challenge.current_streak || 0) / challenge.target_days) * 100)}%`
                                   : "100%",
                                 backgroundColor: isFailed
                                   ? "#EF4444"
-                                  : "#10B981",
+                                  : PRIMARY_GREEN,
                               },
                             ]}
                           />
@@ -704,6 +770,50 @@ export default function Challenges() {
           </View>
         )}
       </ScrollView>
+
+      <RestrictionModal
+        visible={showRestrictionModal}
+        title="Challenges Restricted"
+        message={restrictionMessage}
+        icon="emoji-events"
+        onClose={() => setShowRestrictionModal(false)}
+      />
+
+      <ActionDialog
+        visible={!!pendingAcceptChallenge}
+        title="Start challenge?"
+        message={
+          pendingAcceptChallenge
+            ? `"${pendingAcceptChallenge.title}" will be added to your active list.`
+            : ""
+        }
+        variant="confirm"
+        confirmLabel="Start Challenge"
+        cancelLabel="Not now"
+        onClose={() => setPendingAcceptChallenge(null)}
+        onConfirm={() =>
+          pendingAcceptChallenge &&
+          handleAcceptChallenge(pendingAcceptChallenge.challenge_id)
+        }
+        confirmDisabled={!!acceptingChallengeId}
+      />
+
+      <ActionDialog
+        visible={statusDialog.visible}
+        title={statusDialog.title}
+        message={statusDialog.message}
+        variant={statusDialog.variant}
+        confirmLabel="Got it"
+        showCancelButton={false}
+        onClose={closeStatusDialog}
+        onConfirm={closeStatusDialog}
+      />
+
+      <LoadingOverlay
+        visible={!!acceptingChallengeId}
+        title="Starting challenge"
+        message="This may take a moment."
+      />
     </View>
   );
 }
@@ -752,29 +862,57 @@ const styles = StyleSheet.create({
     width: 40,
   },
   tabs: {
-    flexDirection: "row",
-    backgroundColor: "#fff",
     paddingHorizontal: 20,
+    paddingVertical: 14,
+    gap: 10,
+  },
+  tabsSection: {
+    backgroundColor: "#fff",
     borderBottomWidth: 1,
     borderBottomColor: "#E5E7EB",
   },
-  tab: {
-    flex: 1,
-    paddingVertical: 16,
+  tabPill: {
+    flexDirection: "row",
     alignItems: "center",
-    borderBottomWidth: 2,
-    borderBottomColor: "transparent",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: "#F3F4F6",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
   },
-  activeTab: {
-    borderBottomColor: "#10B981",
+  activeTabPill: {
+    backgroundColor: PRIMARY_GREEN_SOFT,
+    borderColor: PRIMARY_GREEN_BORDER,
   },
-  tabText: {
-    fontSize: 14,
+  tabPillText: {
+    fontSize: 13,
     fontWeight: "600",
     color: "#6B7280",
   },
-  activeTabText: {
-    color: "#10B981",
+  activeTabPillText: {
+    color: PRIMARY_GREEN,
+  },
+  tabCount: {
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    paddingHorizontal: 6,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+  },
+  activeTabCount: {
+    backgroundColor: PRIMARY_GREEN,
+  },
+  tabCountText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#6B7280",
+  },
+  activeTabCountText: {
+    color: "#FFFFFF",
   },
   content: {
     flex: 1,
@@ -783,23 +921,23 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   filterSection: {
-    marginBottom: 20,
+    marginBottom: 16,
   },
   filterScrollContent: {
     paddingRight: 20,
   },
   filterChip: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
     backgroundColor: "#F3F4F6",
-    marginRight: 12,
+    marginRight: 10,
     borderWidth: 1,
     borderColor: "#E5E7EB",
   },
   activeFilterChip: {
-    backgroundColor: "#10B981",
-    borderColor: "#10B981",
+    backgroundColor: PRIMARY_GREEN,
+    borderColor: PRIMARY_GREEN,
   },
   filterChipText: {
     fontSize: 14,
@@ -809,43 +947,49 @@ const styles = StyleSheet.create({
   activeFilterChipText: {
     color: "#fff",
   },
-  challengesGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
+  challengeStack: {
+    gap: 12,
   },
   challengeCard: {
     backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 16,
-    width: "48%",
-    marginBottom: 16,
+    borderRadius: 18,
+    padding: 14,
     borderWidth: 1,
     borderColor: "#E5E7EB",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
     elevation: 2,
   },
   cardHeader: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
     marginBottom: 12,
+    gap: 12,
+  },
+  cardIntro: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    flex: 1,
+  },
+  cardTextBlock: {
+    flex: 1,
   },
   iconContainer: {
-    width: 40,
-    height: 40,
+    width: 42,
+    height: 42,
     borderRadius: 12,
-    backgroundColor: "#ECFDF5",
+    backgroundColor: PRIMARY_GREEN_SOFT,
     justifyContent: "center",
     alignItems: "center",
   },
   difficultyBadge: {
     paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    paddingVertical: 5,
+    borderRadius: 999,
   },
   difficultyText: {
     fontSize: 10,
@@ -854,30 +998,36 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   challengeTitle: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: "700",
     color: "#111827",
-    marginBottom: 8,
-    lineHeight: 20,
+    marginBottom: 4,
+    lineHeight: 22,
   },
   description: {
-    fontSize: 14,
+    fontSize: 13,
     color: "#6B7280",
     lineHeight: 18,
-    marginBottom: 12,
   },
   cardFooter: {
     gap: 12,
   },
   metaInfo: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    flexWrap: "wrap",
     alignItems: "center",
+    gap: 8,
   },
-  durationInfo: {
+  metaChip: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 999,
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
   },
   durationText: {
     fontSize: 12,
@@ -895,23 +1045,26 @@ const styles = StyleSheet.create({
     color: "#92400E",
   },
   acceptButton: {
-    backgroundColor: "#10B981",
-    paddingVertical: 10,
-    borderRadius: 8,
+    backgroundColor: PRIMARY_GREEN,
+    paddingVertical: 11,
+    borderRadius: 12,
     alignItems: "center",
   },
   acceptButtonText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "700",
     color: "#fff",
+  },
+  buttonDisabled: {
+    opacity: 0.7,
   },
   activeChallengesList: {
     gap: 16,
   },
   activeChallengeCard: {
     backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: 18,
+    padding: 16,
     borderWidth: 1,
     borderColor: "#E5E7EB",
     shadowColor: "#000",
@@ -924,9 +1077,9 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: 12,
   },
-  progressText: {
-    fontSize: 14,
-    color: "#10B981",
+  streakText: {
+    fontSize: 13,
+    color: PRIMARY_GREEN,
     fontWeight: "600",
   },
   progressBarContainer: {
@@ -936,9 +1089,9 @@ const styles = StyleSheet.create({
     marginVertical: 12,
     overflow: "hidden",
   },
-  progressBar: {
+  streakProgressFill: {
     height: "100%",
-    backgroundColor: "#10B981",
+    backgroundColor: PRIMARY_GREEN,
     borderRadius: 4,
   },
   statusText: {
@@ -951,8 +1104,8 @@ const styles = StyleSheet.create({
   },
   historyChallengeCard: {
     backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: 18,
+    padding: 16,
     borderWidth: 1,
     borderColor: "#E5E7EB",
     shadowColor: "#000",
@@ -965,7 +1118,7 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4,
     borderLeftColor: "#EF4444",
   },
-  completedText: {
+  historyCompletedText: {
     fontSize: 14,
     color: "#6B7280",
     fontWeight: "500",
@@ -982,7 +1135,7 @@ const styles = StyleSheet.create({
   },
   emptyState: {
     alignItems: "center",
-    paddingVertical: 60,
+    paddingVertical: 56,
   },
   emptyTitle: {
     fontSize: 20,
@@ -997,8 +1150,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   lockedCard: {
-    backgroundColor: "#F9FAFB",
-    opacity: 0.85,
+    backgroundColor: "#FCFCFD",
   },
   lockedIconContainer: {
     backgroundColor: "#F3F4F6",
@@ -1006,24 +1158,26 @@ const styles = StyleSheet.create({
   completedBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#10B981",
+    backgroundColor: PRIMARY_GREEN,
     paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    paddingVertical: 5,
+    borderRadius: 999,
     gap: 4,
   },
-  completedText: {
+  completedBadgeText: {
     fontSize: 10,
     fontWeight: "700",
     color: "#fff",
     letterSpacing: 0.5,
   },
   cooldownContainer: {
-    backgroundColor: "#F3F4F6",
-    borderRadius: 8,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 14,
     padding: 12,
     marginBottom: 12,
     gap: 8,
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
   },
   cooldownInfo: {
     flexDirection: "row",
@@ -1038,7 +1192,7 @@ const styles = StyleSheet.create({
   progressContainer: {
     gap: 4,
   },
-  progressBar: {
+  cooldownProgressTrack: {
     height: 6,
     backgroundColor: "#E5E7EB",
     borderRadius: 3,
@@ -1046,21 +1200,21 @@ const styles = StyleSheet.create({
   },
   progressFill: {
     height: "100%",
-    backgroundColor: "#10B981",
+    backgroundColor: PRIMARY_GREEN,
     borderRadius: 3,
   },
-  progressText: {
+  cooldownProgressText: {
     fontSize: 11,
     color: "#6B7280",
-    textAlign: "center",
+    textAlign: "left",
   },
   lockedButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "#F3F4F6",
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingVertical: 11,
+    borderRadius: 12,
     gap: 6,
   },
   lockedButtonText: {

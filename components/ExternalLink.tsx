@@ -1,3 +1,4 @@
+// Link wrapper that opens web URLs in an in-app browser on native platforms.
 import { Href, Link } from 'expo-router';
 import { openBrowserAsync } from 'expo-web-browser';
 import { type ComponentProps } from 'react';

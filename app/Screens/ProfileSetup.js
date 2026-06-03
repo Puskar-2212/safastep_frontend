@@ -1,3 +1,4 @@
+// First-time profile completion screen used after sign-up or verified login.
 import { MaterialIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
@@ -16,11 +17,13 @@ import {
     View,
 } from 'react-native';
 import * as Animatable from 'react-native-animatable';
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BASE_URL } from '../../constants/config';
 
 const ProfileSetup = () => {
   const params = useLocalSearchParams();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   
   const [profileImage, setProfileImage] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -149,7 +152,13 @@ const ProfileSetup = () => {
       console.log('Upload response:', result);
 
       if (response.ok && result.success) {
-        await AsyncStorage.setItem("mobile", identifier);
+        if (isEmailUser) {
+          await AsyncStorage.removeItem("mobile");
+          await AsyncStorage.setItem("email", identifier);
+        } else {
+          await AsyncStorage.removeItem("email");
+          await AsyncStorage.setItem("mobile", identifier);
+        }
         Alert.alert('Success', 'Profile picture uploaded successfully!', [
           {
             text: 'OK',
@@ -187,7 +196,13 @@ const ProfileSetup = () => {
         {
           text: 'Skip & Continue',
           onPress: async () => {
-            await AsyncStorage.setItem("mobile", identifier);
+            if (isEmailUser) {
+              await AsyncStorage.removeItem("mobile");
+              await AsyncStorage.setItem("email", identifier);
+            } else {
+              await AsyncStorage.removeItem("email");
+              await AsyncStorage.setItem("mobile", identifier);
+            }
             router.push({
               pathname: '/Dashboard/Homepage',
               params: { mobile: identifier },
@@ -205,7 +220,13 @@ const ProfileSetup = () => {
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
     >
       <ScrollView 
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[
+          styles.scrollContent,
+          {
+            paddingTop: Math.max(insets.top + 16, 60),
+            paddingBottom: Math.max(insets.bottom + 40, 40),
+          },
+        ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >

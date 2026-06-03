@@ -1,3 +1,4 @@
+// Main authenticated home screen that combines feed, announcements, tracker entry, and navigation.
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -18,16 +19,47 @@ import {
     View,
 } from "react-native";
 import * as Animatable from "react-native-animatable";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import AnnouncementCard from "../../components/AnnouncementCard";
+import RestrictionModal from "../../components/ui/RestrictionModal";
 import { BASE_URL } from "../../constants/config";
-import CO2CalculatorLanding from "../Screens/CO2CalculatorLanding";
+import CarbonTrackerLanding from "../Screens/CarbonTrackerLanding";
 import CreatePost from "../Screens/CreatePost";
 import ExploreMap from "../Screens/ExploreMap";
 import Profile from "../Screens/Profile";
 
+const API_JSON_HEADERS = {
+  "ngrok-skip-browser-warning": "true",
+};
+
+const fetchJson = async (url, options = {}) => {
+  // Keep JSON fetching in one place so every homepage request uses the same headers and parsing rules.
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      ...API_JSON_HEADERS,
+      ...(options.headers || {}),
+    },
+  });
+
+  const rawText = await response.text();
+
+  try {
+    return {
+      response,
+      data: rawText ? JSON.parse(rawText) : {},
+    };
+  } catch (error) {
+    throw new Error(
+      `Expected JSON response but received: ${rawText.slice(0, 160) || "empty response"}`,
+    );
+  }
+};
+
 const Homepage = () => {
   const params = useLocalSearchParams();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -48,6 +80,39 @@ const Homepage = () => {
   const scrollViewRef = useRef(null);
   const [shareModalVisible, setShareModalVisible] = useState(false);
   const [selectedPost, setSelectedPost] = useState(null);
+  const [selectedImageUri, setSelectedImageUri] = useState(null);
+  const [restrictionMessage, setRestrictionMessage] = useState("");
+  const [showRestrictionModal, setShowRestrictionModal] = useState(false);
+  const [activePostMenuId, setActivePostMenuId] = useState(null);
+
+  const getStoredIdentifier = async () => {
+    // SafaStep supports both email and mobile auth, so every data request resolves whichever identifier is active.
+    const email = await AsyncStorage.getItem("email");
+    const mobile = await AsyncStorage.getItem("mobile");
+    return email || mobile;
+  };
+
+  const clearStoredSession = async () => {
+    // Remove every session marker before forcing the user back to login.
+    await AsyncStorage.multiRemove(["mobile", "email", "hasLoggedInBefore"]);
+  };
+
+  const handleRemovedOrDeactivatedAccount = async (title, message) => {
+    await clearStoredSession();
+    setUserData(null);
+    setPosts([]);
+    setAnnouncements([]);
+    Alert.alert(
+      title,
+      message,
+      [
+        {
+          text: "OK",
+          onPress: () => router.replace("/Screens/Login"),
+        },
+      ],
+    );
+  };
 
   // Pan responder for swipe gestures
   const panResponder = useRef(
@@ -98,6 +163,7 @@ const Homepage = () => {
   };
 
   useEffect(() => {
+    // Homepage bootstraps the main dashboard data as soon as the user lands here.
     loadUserData();
     loadPosts();
     loadAnnouncements();
@@ -125,6 +191,16 @@ const Homepage = () => {
     return () => clearInterval(notificationInterval);
   }, []);
 
+  useEffect(() => {
+    if (!highlightedAnnouncementId || announcements.length === 0) return;
+
+    const timer = setTimeout(() => {
+      scrollToAnnouncement(highlightedAnnouncementId);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [highlightedAnnouncementId, announcements]);
+
   const checkIfFirstTime = async () => {
     try {
       const hasLoggedInBefore = await AsyncStorage.getItem("hasLoggedInBefore");
@@ -137,7 +213,7 @@ const Homepage = () => {
         setIsFirstTimeUser(false);
       }
 
-      // Show banner for 2 seconds
+      // Keep the welcome message short so it feels friendly without delaying the main content.
       setShowWelcomeBanner(true);
       setTimeout(() => {
         setShowWelcomeBanner(false);
@@ -149,23 +225,42 @@ const Homepage = () => {
 
   const loadUserData = async () => {
     try {
-      // Get identifier (mobile or email) from params or AsyncStorage
-      let identifier = params.mobile || (await AsyncStorage.getItem("mobile"));
+      // Prefer the navigation param first, then fall back to the persisted session identifier.
+      let identifier =
+        params.mobile ||
+        (await AsyncStorage.getItem("mobile")) ||
+        (await AsyncStorage.getItem("email"));
 
       if (!identifier) {
         router.push("/Screens/Login");
         return;
       }
 
-      // Use the new endpoint that works with both mobile and email
-      const response = await fetch(
-        `${BASE_URL}/user/by-identifier/${identifier}`,
+      // This unified backend lookup works for both login methods and keeps the frontend simpler.
+      const { response, data: result } = await fetchJson(
+        `${BASE_URL}/user/by-identifier/${encodeURIComponent(identifier)}`,
       );
-      const result = await response.json();
 
       if (response.ok && result.success) {
         setUserData(result.user);
-        await AsyncStorage.setItem("mobile", identifier); // Store identifier (works for both mobile and email)
+        // Persist only the currently valid identifier type so later screens do not read stale auth values.
+        if (identifier.includes("@")) {
+          await AsyncStorage.removeItem("mobile");
+          await AsyncStorage.setItem("email", identifier);
+        } else {
+          await AsyncStorage.removeItem("email");
+          await AsyncStorage.setItem("mobile", identifier);
+        }
+      } else if (response.status === 404) {
+        await handleRemovedOrDeactivatedAccount(
+          "Account Removed",
+          "This account no longer exists. Please sign in again.",
+        );
+      } else if (response.status === 403) {
+        await handleRemovedOrDeactivatedAccount(
+          "Account Deactivated",
+          result.detail || "This account has been deactivated by an administrator.",
+        );
       } else {
         Alert.alert("Error", "Failed to load user data");
       }
@@ -179,16 +274,16 @@ const Homepage = () => {
 
   const loadPosts = async () => {
     try {
-      const mobile = await AsyncStorage.getItem("mobile");
+      const identifier = await getStoredIdentifier();
 
-      // Fetch posts from backend with userId to check liked status
-      const response = await fetch(`${BASE_URL}/posts?userId=${mobile}`);
-      const result = await response.json();
+      // The current identifier lets the backend mark whether each feed post is already liked by this user.
+      const { response, data: result } = await fetchJson(
+        `${BASE_URL}/posts?userId=${encodeURIComponent(identifier || "")}`,
+      );
 
       if (response.ok && result.success) {
-        // Transform backend posts to match frontend format
+        // Normalize raw backend documents into the card structure used by the home feed.
         const transformedPosts = result.posts.map((post) => {
-          // Calculate time ago
           const timeAgo = getTimeAgo(post.createdAt);
 
           return {
@@ -201,7 +296,7 @@ const Homepage = () => {
             caption: post.caption,
             description: post.caption,
             impact: {
-              category: post.category,
+              category: post.category || "Eco Post",
               co2: post.co2Offset ? `${post.co2Offset} kg` : "0 kg",
               ecoPoints: post.ecoPoints || 0,
             },
@@ -229,18 +324,13 @@ const Homepage = () => {
 
   const loadAnnouncements = async () => {
     try {
-      const response = await fetch(`${BASE_URL}/posts/announcements?limit=20`);
-      const result = await response.json();
+      // Announcements are fetched separately from posts because they are rendered in their own banner-style section.
+      const { response, data: result } = await fetchJson(
+        `${BASE_URL}/posts/announcements?limit=20`,
+      );
 
       if (response.ok && result.success) {
         setAnnouncements(result.announcements);
-
-        // If we have a highlighted announcement, scroll to it after a short delay
-        if (highlightedAnnouncementId) {
-          setTimeout(() => {
-            scrollToAnnouncement(highlightedAnnouncementId);
-          }, 500);
-        }
       }
     } catch (error) {
       console.error("Error loading announcements:", error);
@@ -260,7 +350,7 @@ const Homepage = () => {
             setHighlightedAnnouncementId(null);
           }, 3000);
         },
-        () => console.log("Failed to measure announcement position"),
+        () => {},
       );
     }
   };
@@ -278,18 +368,16 @@ const Homepage = () => {
 
   const fetchUnreadCount = async () => {
     try {
-      const identifier = await AsyncStorage.getItem("mobile");
+      const identifier = await getStoredIdentifier();
       if (!identifier) return;
 
-      const response = await fetch(
+      // The unread badge helps the homepage double as a notification summary screen.
+      const { data } = await fetchJson(
         `${BASE_URL}/notifications/${identifier}/unread-count`,
         {
-          headers: {
-            "ngrok-skip-browser-warning": "true",
-          },
+          headers: API_JSON_HEADERS,
         },
       );
-      const data = await response.json();
 
       if (data.success) {
         setUnreadCount(data.unreadCount);
@@ -307,11 +395,27 @@ const Homepage = () => {
     fetchUnreadCount(); // Also refresh notification count
   };
 
+  const handleOpenCreatePost = () => {
+    if (userData?.accountStatus === "banned") {
+      setRestrictionMessage("Your account is banned from creating posts.");
+      setShowRestrictionModal(true);
+      return;
+    }
+
+    setShowCreatePost(true);
+  };
+
+  const refreshProfileTabData = async () => {
+    await loadUserData();
+    await loadPosts();
+    await loadAnnouncements();
+    await fetchUnreadCount();
+  };
+
+
   const handleLike = async (postId) => {
     try {
-      const mobile = await AsyncStorage.getItem("mobile");
-      const email = await AsyncStorage.getItem("email");
-      const identifier = mobile || email;
+      const identifier = await getStoredIdentifier();
 
       if (!identifier) {
         Alert.alert("Error", "Please log in to like posts");
@@ -327,15 +431,10 @@ const Homepage = () => {
         formData.append("mobile", identifier);
       }
 
-      console.log(`Liking post ${postId} with identifier: ${identifier}`);
-
       const response = await fetch(`${BASE_URL}/posts/${postId}/like`, {
         method: "POST",
         body: formData,
       });
-
-      console.log(`Like response status: ${response.status}`);
-      console.log(`Like response headers:`, response.headers);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -374,7 +473,7 @@ const Homepage = () => {
     if (!selectedPost) return;
 
     const imageUrl = selectedPost.image.uri;
-    const message = `Check out this eco-action on SafaStep! 🌱\n\n${selectedPost.user.name} saved ${selectedPost.impact.co2} by ${selectedPost.impact.category}.\n\n"${selectedPost.caption}"\n\n${imageUrl}\n\nJoin SafaStep and track your environmental impact!`;
+    const message = `Check out this eco-action on SafaStep.\n\n${selectedPost.user.name} saved ${selectedPost.impact.co2} by ${selectedPost.impact.category}.\n\n"${selectedPost.caption}"\n\n${imageUrl}\n\nJoin SafaStep and track your environmental impact!`;
 
     const url = `whatsapp://send?text=${encodeURIComponent(message)}`;
 
@@ -396,7 +495,7 @@ const Homepage = () => {
     if (!selectedPost) return;
 
     const imageUrl = selectedPost.image.uri;
-    const message = `Check out this eco-action on SafaStep! 🌱\n\n${selectedPost.user.name} saved ${selectedPost.impact.co2} by ${selectedPost.impact.category}.\n\n"${selectedPost.caption}"\n\n${imageUrl}\n\nJoin SafaStep and track your environmental impact!`;
+    const message = `Check out this eco-action on SafaStep.\n\n${selectedPost.user.name} saved ${selectedPost.impact.co2} by ${selectedPost.impact.category}.\n\n"${selectedPost.caption}"\n\n${imageUrl}\n\nJoin SafaStep and track your environmental impact!`;
 
     // Try Facebook Messenger with text message
     const messengerUrl = `fb-messenger://share?text=${encodeURIComponent(message)}`;
@@ -454,6 +553,7 @@ const Homepage = () => {
   };
 
   const handleDeletePost = (postId, postOwner) => {
+    setActivePostMenuId(null);
     Alert.alert("Delete Post", "Are you sure you want to delete this post?", [
       { text: "Cancel", style: "cancel" },
       {
@@ -461,7 +561,12 @@ const Homepage = () => {
         style: "destructive",
         onPress: async () => {
           try {
-            const identifier = await AsyncStorage.getItem("mobile");
+            const identifier = await getStoredIdentifier();
+
+            if (!identifier) {
+              Alert.alert("Error", "User not logged in");
+              return;
+            }
 
             // Check if user owns this post
             if (identifier !== postOwner) {
@@ -497,6 +602,15 @@ const Homepage = () => {
     ]);
   };
 
+  const togglePostMenu = (postId) => {
+    setActivePostMenuId((currentId) => (currentId === postId ? null : postId));
+  };
+
+  const handleOpenImage = (imageUri) => {
+    if (!imageUri) return;
+    setSelectedImageUri(imageUri);
+  };
+
   const handleLogout = async () => {
     Alert.alert("Logout", "Are you sure you want to logout?", [
       { text: "Cancel", style: "cancel" },
@@ -525,11 +639,33 @@ const Homepage = () => {
   };
 
   const handleViewLocation = (location) => {
-    console.log("handleViewLocation called with:", location);
     // Store the selected location and switch to explore tab
     setSelectedLocation(location);
     setActiveTab("explore");
   };
+
+  const navItems = [
+    { key: "home", label: "Home", icon: "home", activeIcon: "home" },
+    {
+      key: "explore",
+      label: "Explore",
+      icon: "campaign",
+      activeIcon: "campaign",
+    },
+    {
+      key: "calculator",
+      label: "Tracker",
+      icon: "eco",
+      activeIcon: "eco",
+    },
+    {
+      key: "profile",
+      label: "Profile",
+      icon: "person-outline",
+      activeIcon: "person",
+    },
+  ];
+
 
   if (loading) {
     return (
@@ -543,18 +679,14 @@ const Homepage = () => {
   // Render content based on active tab
   const renderContent = () => {
     if (activeTab === "profile") {
-      return <Profile userData={userData} onRefresh={loadUserData} />;
+      return <Profile userData={userData} onRefresh={refreshProfileTabData} />;
     }
 
     if (activeTab === "calculator") {
-      return <CO2CalculatorLanding />;
+      return <CarbonTrackerLanding embedded />;
     }
 
     if (activeTab === "explore") {
-      console.log(
-        "Rendering ExploreMap with selectedLocation:",
-        selectedLocation,
-      );
       return (
         <ExploreMap
           selectedLocation={selectedLocation}
@@ -568,6 +700,9 @@ const Homepage = () => {
       <ScrollView
         ref={scrollViewRef}
         style={styles.feed}
+        contentContainerStyle={{
+          paddingBottom: Math.max(insets.bottom + 16, 28),
+        }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -583,8 +718,8 @@ const Homepage = () => {
             <View style={styles.bannerContent}>
               <Text style={styles.bannerTitle}>
                 {isFirstTimeUser
-                  ? `Welcome, ${userData.firstName}! 👋`
-                  : `Welcome back, ${userData.firstName}! 👋`}
+                  ? `Welcome, ${userData.firstName}`
+                  : `Welcome back, ${userData.firstName}`}
               </Text>
               <Text style={styles.bannerSubtitle}>
                 Discover eco-actions from your community
@@ -619,7 +754,6 @@ const Homepage = () => {
             const postOwnerIdentifier =
               post.identifier || post.mobile || post.email;
             const isOwnPost = currentUserIdentifier === postOwnerIdentifier;
-
             return (
               <Animatable.View
                 key={post.id}
@@ -641,7 +775,14 @@ const Homepage = () => {
                     }}
                   >
                     <View style={styles.linkedInAvatar}>
-                      <MaterialIcons name="person" size={24} color="#fff" />
+                      {post.user.avatar ? (
+                        <Image
+                          source={{ uri: post.user.avatar }}
+                          style={styles.linkedInAvatarImage}
+                        />
+                      ) : (
+                        <MaterialIcons name="person" size={24} color="#fff" />
+                      )}
                     </View>
                     <View style={styles.linkedInAuthorInfo}>
                       <Text style={styles.linkedInAuthorName}>
@@ -653,34 +794,86 @@ const Homepage = () => {
                     </View>
                   </Pressable>
 
-                  {/* Delete button - only show for user's own posts */}
+                  {/* Post menu - only show for user's own posts */}
                   {isOwnPost && (
-                    <Pressable
-                      style={styles.linkedInDeleteButton}
-                      onPress={() =>
-                        handleDeletePost(post.id, postOwnerIdentifier)
-                      }
-                    >
-                      <Ionicons
-                        name="trash-outline"
-                        size={20}
-                        color="#EF4444"
-                      />
-                    </Pressable>
+                    <View style={styles.linkedInPostMenuContainer}>
+                      <Pressable
+                        style={styles.linkedInPostMenuTrigger}
+                        onPress={() => togglePostMenu(post.id)}
+                      >
+                        <MaterialIcons name="more-vert" size={18} color="#0F172A" />
+                      </Pressable>
+
+                      {activePostMenuId === post.id && (
+                        <View style={styles.linkedInPostMenuSheet}>
+                          <Pressable
+                            style={styles.linkedInPostMenuItem}
+                            onPress={() => {
+                              togglePostMenu(null);
+                              handleShare(post);
+                            }}
+                          >
+                            <MaterialIcons
+                              name="share"
+                              size={16}
+                              color="#0F172A"
+                            />
+                            <Text
+                              style={[
+                                styles.linkedInPostMenuItemText,
+                                styles.linkedInPostMenuItemTextNeutral,
+                              ]}
+                            >
+                              Share
+                            </Text>
+                          </Pressable>
+                          <Pressable
+                            style={[
+                              styles.linkedInPostMenuItem,
+                              styles.linkedInPostMenuItemDanger,
+                            ]}
+                            onPress={() =>
+                              handleDeletePost(post.id, postOwnerIdentifier)
+                            }
+                          >
+                            <MaterialIcons
+                              name="delete-outline"
+                              size={16}
+                              color="#DC2626"
+                            />
+                            <Text
+                              style={[
+                                styles.linkedInPostMenuItemText,
+                                styles.linkedInPostMenuItemTextDanger,
+                              ]}
+                            >
+                              Delete
+                            </Text>
+                          </Pressable>
+                        </View>
+                      )}
+                    </View>
                   )}
                 </View>
 
-                {/* Caption */}
-                <Text style={styles.linkedInCaption} numberOfLines={3}>
-                  {post.caption}
-                </Text>
-
                 {/* Image */}
-                <Image
-                  source={post.image}
-                  style={styles.linkedInImage}
-                  resizeMode="cover"
-                />
+                <Pressable
+                  style={styles.linkedInImageFrame}
+                  onPress={() => handleOpenImage(post.image?.uri)}
+                >
+                  <Image
+                    source={post.image}
+                    style={styles.linkedInImage}
+                    resizeMode="contain"
+                  />
+                </Pressable>
+
+                {/* Caption */}
+                {!!post.caption && (
+                  <Text style={styles.linkedInCaption} numberOfLines={4}>
+                    {post.caption}
+                  </Text>
+                )}
 
                 {/* Category Badge */}
                 <View style={styles.linkedInCategoryContainer}>
@@ -742,31 +935,17 @@ const Homepage = () => {
                 {/* Impact Stats */}
                 <View style={styles.linkedInImpactContainer}>
                   <View style={styles.linkedInImpactBadge}>
-                    <MaterialIcons name="cloud" size={18} color="#047857" />
+                    <MaterialIcons name="eco" size={16} color="#047857" />
                     <Text style={styles.linkedInImpactText}>
-                      {post.impact.co2} CO₂
+                      {post.impact.category}
                     </Text>
                   </View>
-                  {post.impact.trees && (
-                    <View style={styles.linkedInImpactBadge}>
-                      <MaterialIcons name="park" size={18} color="#047857" />
-                      <Text style={styles.linkedInImpactText}>
-                        {post.impact.trees} trees
-                      </Text>
-                    </View>
-                  )}
-                  {post.impact.waste && (
-                    <View style={styles.linkedInImpactBadge}>
-                      <MaterialIcons
-                        name="delete-outline"
-                        size={18}
-                        color="#F59E0B"
-                      />
-                      <Text style={styles.linkedInImpactText}>
-                        {post.impact.waste}
-                      </Text>
-                    </View>
-                  )}
+                  <View style={styles.linkedInImpactBadge}>
+                    <MaterialIcons name="cloud" size={16} color="#047857" />
+                    <Text style={styles.linkedInImpactText}>
+                      {post.impact.co2} CO2 saved
+                    </Text>
+                  </View>
                 </View>
 
                 {/* Actions Row */}
@@ -789,14 +968,6 @@ const Homepage = () => {
                       {post.likes}
                     </Text>
                   </Pressable>
-
-                  <Pressable
-                    style={styles.linkedInActionButton}
-                    onPress={() => handleShare(post)}
-                  >
-                    <MaterialIcons name="share" size={20} color="#64748B" />
-                    <Text style={styles.linkedInActionText}>Share</Text>
-                  </Pressable>
                 </View>
               </Animatable.View>
             );
@@ -811,7 +982,7 @@ const Homepage = () => {
               resizeMode="contain"
             />
           </View>
-          <Text style={styles.feedEndText}>You're all caught up!</Text>
+          <Text style={styles.feedEndText}>You&apos;re all caught up!</Text>
           <Text style={styles.feedEndSubtext}>
             Check back later for more inspiring eco-actions
           </Text>
@@ -824,7 +995,12 @@ const Homepage = () => {
     <View style={styles.container}>
       {/* Header - Only show on home tab */}
       {activeTab === "home" && (
-        <View style={styles.header}>
+        <View
+          style={[
+            styles.header,
+            { paddingTop: Math.max(insets.top + 8, 48) },
+          ]}
+        >
           <Pressable style={styles.menuButton} onPress={openMenu}>
             <MaterialIcons name="menu" size={26} color="#111827" />
           </Pressable>
@@ -854,69 +1030,46 @@ const Homepage = () => {
         </View>
       )}
 
-      {/* Content - Don't wrap calculator in extra view */}
-      {activeTab === "calculator" ? <CO2CalculatorLanding /> : renderContent()}
+      {/* Content */}
+      {renderContent()}
 
       {/* Bottom Navigation */}
-      <View style={styles.bottomNav}>
-        <Pressable
-          style={[styles.navItem, activeTab === "home" && styles.navItemActive]}
-          onPress={() => setActiveTab("home")}
-        >
-          <View
-            style={[
-              styles.navIconContainer,
-              activeTab === "home" && styles.navIconContainerActive,
-            ]}
-          >
-            <MaterialIcons
-              name="home"
-              size={26}
-              color={activeTab === "home" ? "#047857" : "#94A3B8"}
-            />
-          </View>
-          <Text
-            style={[
-              styles.navText,
-              activeTab === "home" && styles.navTextActive,
-            ]}
-          >
-            Home
-          </Text>
-        </Pressable>
-
-        <Pressable
-          style={[
-            styles.navItem,
-            activeTab === "explore" && styles.navItemActive,
-          ]}
-          onPress={() => setActiveTab("explore")}
-        >
-          <View
-            style={[
-              styles.navIconContainer,
-              activeTab === "explore" && styles.navIconContainerActive,
-            ]}
-          >
-            <MaterialIcons
-              name="campaign"
-              size={26}
-              color={activeTab === "explore" ? "#047857" : "#94A3B8"}
-            />
-          </View>
-          <Text
-            style={[
-              styles.navText,
-              activeTab === "explore" && styles.navTextActive,
-            ]}
-          >
-            Explore
-          </Text>
-        </Pressable>
+      <View
+        style={[
+          styles.bottomNav,
+          { paddingBottom: Math.max(insets.bottom + 10, 12) },
+        ]}
+      >
+        {navItems.slice(0, 2).map((item) => {
+          const isActive = activeTab === item.key;
+          return (
+            <Pressable
+              key={item.key}
+              style={[styles.navItem, isActive && styles.navItemActive]}
+              onPress={() => setActiveTab(item.key)}
+            >
+              <View
+                style={[
+                  styles.navIconContainer,
+                  isActive && styles.navIconContainerActive,
+                ]}
+              >
+                <MaterialIcons
+                  name={isActive ? item.activeIcon : item.icon}
+                  size={26}
+                  color={isActive ? "#047857" : "#94A3B8"}
+                />
+              </View>
+              <Text style={[styles.navText, isActive && styles.navTextActive]}>
+                {item.label}
+              </Text>
+            </Pressable>
+          );
+        })}
 
         <Pressable
           style={styles.navItem}
-          onPress={() => setShowCreatePost(true)}
+          onPress={handleOpenCreatePost}
         >
           <View style={styles.addButton}>
             <MaterialIcons name="add" size={30} color="#fff" />
@@ -949,38 +1102,36 @@ const Homepage = () => {
               activeTab === "calculator" && styles.navTextActive,
             ]}
           >
-            CO₂ Calc
+            Tracker
           </Text>
         </Pressable>
 
-        <Pressable
-          style={[
-            styles.navItem,
-            activeTab === "profile" && styles.navItemActive,
-          ]}
-          onPress={() => setActiveTab("profile")}
-        >
-          <View
-            style={[
-              styles.navIconContainer,
-              activeTab === "profile" && styles.navIconContainerActive,
-            ]}
-          >
-            <MaterialIcons
-              name={activeTab === "profile" ? "person" : "person-outline"}
-              size={26}
-              color={activeTab === "profile" ? "#047857" : "#94A3B8"}
-            />
-          </View>
-          <Text
-            style={[
-              styles.navText,
-              activeTab === "profile" && styles.navTextActive,
-            ]}
-          >
-            Profile
-          </Text>
-        </Pressable>
+        {navItems.slice(3).map((item) => {
+          const isActive = activeTab === item.key;
+          return (
+            <Pressable
+              key={item.key}
+              style={[styles.navItem, isActive && styles.navItemActive]}
+              onPress={() => setActiveTab(item.key)}
+            >
+              <View
+                style={[
+                  styles.navIconContainer,
+                  isActive && styles.navIconContainerActive,
+                ]}
+              >
+                <MaterialIcons
+                  name={isActive ? item.activeIcon : item.icon}
+                  size={26}
+                  color={isActive ? "#047857" : "#94A3B8"}
+                />
+              </View>
+              <Text style={[styles.navText, isActive && styles.navTextActive]}>
+                {item.label}
+              </Text>
+            </Pressable>
+          );
+        })}
       </View>
 
       {/* Edge Swipe Detector - for opening menu */}
@@ -990,6 +1141,29 @@ const Homepage = () => {
 
       {/* Side Menu Overlay - only shows when menu is open */}
       {showMenu && <Pressable style={styles.menuOverlay} onPress={closeMenu} />}
+
+      <Modal
+        visible={Boolean(selectedImageUri)}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setSelectedImageUri(null)}
+      >
+        <View style={styles.imageViewerOverlay}>
+          <Pressable style={styles.imageViewerClose} onPress={() => setSelectedImageUri(null)}>
+            <MaterialIcons name="close" size={24} color="#FFFFFF" />
+          </Pressable>
+          <Pressable style={styles.imageViewerBackdrop} onPress={() => setSelectedImageUri(null)}>
+            {selectedImageUri ? (
+              <Image
+                source={{ uri: selectedImageUri }}
+                style={styles.imageViewerImage}
+                resizeMode="contain"
+              />
+            ) : null}
+          </Pressable>
+        </View>
+      </Modal>
 
       {/* Menu Container - Always rendered for swipe gesture */}
       <Animated.View
@@ -1080,7 +1254,7 @@ const Homepage = () => {
               }}
             >
               <MaterialIcons name="eco" size={24} color="#6b7280" />
-              <Text style={styles.menuItemText}>CO₂ Calculator</Text>
+              <Text style={styles.menuItemText}>Carbon Tracker</Text>
             </Pressable>
 
             <Pressable
@@ -1119,10 +1293,19 @@ const Homepage = () => {
       {/* Create Post Modal */}
       {showCreatePost && (
         <CreatePost
+          visible={showCreatePost}
           onClose={() => setShowCreatePost(false)}
           onPostCreated={handlePostCreated}
         />
       )}
+
+      <RestrictionModal
+        visible={showRestrictionModal}
+        title="Posting Disabled"
+        message={restrictionMessage}
+        icon="edit-off"
+        onClose={() => setShowRestrictionModal(false)}
+      />
 
       {/* Share Modal */}
       <Modal
@@ -1308,18 +1491,24 @@ const styles = StyleSheet.create({
   // LinkedIn-style card styles
   linkedInCard: {
     backgroundColor: "#fff",
-    borderRadius: 12,
-    marginBottom: 12,
+    borderRadius: 16,
+    marginBottom: 14,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
+    borderColor: "#E5E7EB",
     overflow: "hidden",
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08,
+    shadowRadius: 14,
+    elevation: 4,
   },
   linkedInHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    padding: 16,
-    paddingBottom: 12,
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 10,
   },
   linkedInHeaderContent: {
     flexDirection: "row",
@@ -1327,45 +1516,104 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   linkedInAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     backgroundColor: "#047857",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 10,
+    overflow: "hidden",
+  },
+  linkedInAvatarImage: {
+    width: "100%",
+    height: "100%",
   },
   linkedInAuthorInfo: {
     flex: 1,
   },
   linkedInAuthorName: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#1f2937",
-    marginBottom: 2,
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#111827",
+    marginBottom: 1,
   },
   linkedInPostTime: {
-    fontSize: 13,
-    color: "#6b7280",
+    fontSize: 12,
+    color: "#6B7280",
   },
-  linkedInDeleteButton: {
-    padding: 8,
+  linkedInPostMenuContainer: {
+    position: "relative",
+    alignItems: "flex-end",
+  },
+  linkedInPostMenuTrigger: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: "transparent",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  linkedInPostMenuSheet: {
+    position: "absolute",
+    top: 40,
+    right: 0,
+    minWidth: 108,
+    backgroundColor: "rgba(255, 255, 255, 0.98)",
+    borderRadius: 14,
+    padding: 6,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.16,
+    shadowRadius: 16,
+    elevation: 8,
+    zIndex: 5,
+  },
+  linkedInPostMenuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: "#FFFFFF",
+  },
+  linkedInPostMenuItemDanger: {
+    backgroundColor: "#FFF7F7",
+  },
+  linkedInPostMenuItemText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#0F172A",
+  },
+  linkedInPostMenuItemTextNeutral: {
+    color: "#0F172A",
+  },
+  linkedInPostMenuItemTextDanger: {
+    color: "#DC2626",
+  },
+  linkedInImageFrame: {
+    marginHorizontal: 14,
+    borderRadius: 16,
+    overflow: "hidden",
+    backgroundColor: "#FFFFFF",
   },
   linkedInCaption: {
     fontSize: 15,
-    color: "#4b5563",
-    lineHeight: 22,
-    paddingHorizontal: 16,
-    marginBottom: 12,
+    color: "#1F2937",
+    lineHeight: 24,
+    paddingHorizontal: 14,
+    marginBottom: 10,
   },
   linkedInImage: {
     width: "100%",
-    height: 220,
-    marginBottom: 12,
+    height: 245,
+    backgroundColor: "#FFFFFF",
   },
   linkedInCategoryContainer: {
-    paddingHorizontal: 16,
-    marginBottom: 12,
+    display: "none",
   },
   linkedInCategoryBadge: {
     flexDirection: "row",
@@ -1387,33 +1635,33 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
-    paddingHorizontal: 16,
+    paddingHorizontal: 14,
     marginBottom: 12,
   },
   linkedInImpactBadge: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
-    backgroundColor: "#f0fdf4",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 16,
+    backgroundColor: "#F0FDF4",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
     borderWidth: 1,
-    borderColor: "#bbf7d0",
+    borderColor: "#BBF7D0",
   },
   linkedInImpactText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "600",
     color: "#047857",
   },
   linkedInActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 16,
-    paddingHorizontal: 16,
+    gap: 12,
+    paddingHorizontal: 14,
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: "#f3f4f6",
+    borderTopColor: "#E5E7EB",
   },
   linkedInActionButton: {
     flexDirection: "row",
@@ -1421,7 +1669,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   linkedInActionText: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "600",
     color: "#64748B",
   },
@@ -1498,6 +1746,34 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: "rgba(0, 0, 0, 0.5)",
     zIndex: 999,
+  },
+  imageViewerOverlay: {
+    flex: 1,
+    backgroundColor: "#000000",
+  },
+  imageViewerClose: {
+    position: "absolute",
+    top: 52,
+    right: 20,
+    zIndex: 2,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(255,255,255,0.16)",
+  },
+  imageViewerBackdrop: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+    paddingTop: 80,
+    paddingBottom: 32,
+  },
+  imageViewerImage: {
+    width: "100%",
+    height: "100%",
   },
   sideMenuContainer: {
     position: "absolute",
@@ -1652,3 +1928,8 @@ const styles = StyleSheet.create({
 });
 
 export default Homepage;
+
+
+
+
+

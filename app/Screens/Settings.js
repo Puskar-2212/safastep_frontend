@@ -1,3 +1,4 @@
+// App settings screen for account navigation and session-level actions.
 import React from "react";
 import {
   View,
@@ -6,13 +7,16 @@ import {
   ScrollView,
   Pressable,
   Alert,
+  Switch,
 } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const Settings = () => {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const handleLogout = async () => {
     Alert.alert(
@@ -41,21 +45,21 @@ const Settings = () => {
           label: "Privacy & Security",
           type: "navigate",
           onPress: () => router.push("/Screens/PrivacySecurity"),
-          color: "#8B5CF6",
+          color: "#0C8A4B",
         },
         {
           icon: "person",
           label: "Account Settings",
           type: "navigate",
           onPress: () => Alert.alert("Account Settings", "Coming soon!"),
-          color: "#8B5CF6",
+          color: "#0C8A4B",
         },
         {
           icon: "storage",
           label: "Data & Storage",
           type: "navigate",
           onPress: () => Alert.alert("Data & Storage", "Coming soon!"),
-          color: "#8B5CF6",
+          color: "#0C8A4B",
         },
       ],
     },
@@ -67,21 +71,21 @@ const Settings = () => {
           label: "Help Center",
           type: "navigate",
           onPress: () => Alert.alert("Help Center", "Visit our help center at help.safastep.com"),
-          color: "#047857",
+          color: "#0C8A4B",
         },
         {
           icon: "feedback",
           label: "Send Feedback",
           type: "navigate",
           onPress: () => Alert.alert("Feedback", "Thank you for your feedback!"),
-          color: "#047857",
+          color: "#0C8A4B",
         },
         {
           icon: "bug-report",
           label: "Report a Problem",
           type: "navigate",
           onPress: () => Alert.alert("Report Problem", "Coming soon!"),
-          color: "#047857",
+          color: "#0C8A4B",
         },
       ],
     },
@@ -92,22 +96,22 @@ const Settings = () => {
           icon: "info",
           label: "About SafaStep",
           type: "navigate",
-          onPress: () => Alert.alert("About SafaStep", "SafaStep v1.0.0\n\nMaking the world greener, one step at a time! 🌱"),
-          color: "#3B82F6",
+          onPress: () => Alert.alert("About SafaStep", "SafaStep v1.0.0\n\nMaking the world greener, one step at a time."),
+          color: "#0C8A4B",
         },
         {
           icon: "description",
           label: "Terms of Service",
           type: "navigate",
           onPress: () => Alert.alert("Terms of Service", "Coming soon!"),
-          color: "#3B82F6",
+          color: "#0C8A4B",
         },
         {
           icon: "policy",
           label: "Privacy Policy",
           type: "navigate",
           onPress: () => Alert.alert("Privacy Policy", "Coming soon!"),
-          color: "#3B82F6",
+          color: "#0C8A4B",
         },
       ],
     },
@@ -116,7 +120,12 @@ const Settings = () => {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
+      <View
+        style={[
+          styles.header,
+          { paddingTop: Math.max(insets.top + 10, 50) },
+        ]}
+      >
         <Pressable
           style={styles.backButton}
           onPress={() => router.back()}
@@ -130,6 +139,7 @@ const Settings = () => {
       <ScrollView
         style={styles.content}
         showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: Math.max(insets.bottom + 20, 20) }}
       >
         {settingsSections.map((section, sectionIndex) => (
           <View key={sectionIndex} style={styles.section}>
@@ -167,7 +177,7 @@ const Settings = () => {
                         value={item.value}
                         onValueChange={item.onToggle}
                         trackColor={{ false: "#E2E8F0", true: "#C7D2FE" }}
-                        thumbColor={item.value ? "#047857" : "#94A3B8"}
+                        thumbColor={item.value ? "#0C8A4B" : "#94A3B8"}
                       />
                     ) : (
                       <MaterialIcons
@@ -209,7 +219,7 @@ const Settings = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8F9FE",
+    backgroundColor: "#F8F9FA",
   },
   header: {
     flexDirection: "row",
@@ -218,8 +228,8 @@ const styles = StyleSheet.create({
     paddingTop: 50,
     paddingBottom: 20,
     paddingHorizontal: 20,
-    backgroundColor: "#047857",
-    shadowColor: "#047857",
+    backgroundColor: "#0C8A4B",
+    shadowColor: "#0C8A4B",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 12,
@@ -252,7 +262,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 13,
     fontWeight: "800",
-    color: "#047857",
+    color: "#0C8A4B",
     marginBottom: 14,
     marginLeft: 4,
     textTransform: "uppercase",
@@ -262,11 +272,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderRadius: 20,
     overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 3,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.06,
+    shadowRadius: 14,
+    elevation: 4,
   },
   settingItem: {
     flexDirection: "row",
@@ -304,7 +316,7 @@ const styles = StyleSheet.create({
   },
   settingDivider: {
     height: 1,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: "#E2E8F0",
     marginLeft: 74,
   },
   logoutButton: {

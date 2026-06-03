@@ -1,3 +1,4 @@
+// Detailed view for a single admin announcement from the home feed.
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";

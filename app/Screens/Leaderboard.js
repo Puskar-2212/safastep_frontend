@@ -1,3 +1,4 @@
+// Community leaderboard screen that ranks users by eco points and carbon impact.
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
@@ -14,10 +15,12 @@ import {
   View,
 } from "react-native";
 import * as Animatable from "react-native-animatable";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BASE_URL } from "../../constants/config";
 
 const Leaderboard = () => {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [leaderboardData, setLeaderboardData] = useState([]);
@@ -46,7 +49,10 @@ const Leaderboard = () => {
 
   const loadUserIdentifier = async () => {
     try {
-      const identifier = await AsyncStorage.getItem("mobile");
+      // Leaderboard highlighting depends on knowing whether the current row belongs to the logged-in user.
+      const email = await AsyncStorage.getItem("email");
+      const mobile = await AsyncStorage.getItem("mobile");
+      const identifier = email || mobile;
       setCurrentUserIdentifier(identifier);
     } catch (error) {
       console.error("Error loading user identifier:", error);
@@ -56,6 +62,7 @@ const Leaderboard = () => {
   const fetchLeaderboard = async () => {
     try {
       setLoading(true);
+      // Period filter is sent to the backend so ranking and totals are computed server-side.
       const response = await fetch(
         `${BASE_URL}/leaderboard?period=${selectedFilter}&limit=50`,
         {
@@ -67,7 +74,7 @@ const Leaderboard = () => {
       const result = await response.json();
 
       if (response.ok && result.success) {
-        // Transform data to match component format
+        // Convert backend ranking objects into the display model used by the podium and list cards.
         const transformedData = result.leaderboard.map((user) => {
           const isCurrentUser = user.identifier === currentUserIdentifier;
           return {
@@ -100,6 +107,7 @@ const Leaderboard = () => {
     if (!currentUserIdentifier) return;
 
     try {
+      // This separate lookup lets the current user see their own rank even if they are outside the top visible list.
       const response = await fetch(
         `${BASE_URL}/leaderboard/user/${currentUserIdentifier}?period=${selectedFilter}`,
         {
@@ -190,7 +198,7 @@ const Leaderboard = () => {
                   duration={3000}
                   style={styles.sparkleTop}
                 >
-                  <Text style={styles.sparkle}>✨</Text>
+                  <Ionicons name="sparkles" size={18} color="#facc15" />
                 </Animatable.View>
               )}
 
@@ -292,7 +300,13 @@ const Leaderboard = () => {
   return (
     <View style={styles.container}>
       {/* Header with gradient */}
-      <LinearGradient colors={["#047857", "#047857"]} style={styles.header}>
+      <LinearGradient
+        colors={["#047857", "#047857"]}
+        style={[
+          styles.header,
+          { paddingTop: Math.max(insets.top + 10, 50) },
+        ]}
+      >
         <View style={styles.headerTop}>
           <TouchableOpacity
             style={styles.backButton}
@@ -306,7 +320,7 @@ const Leaderboard = () => {
             iterationCount="infinite"
             duration={3000}
           >
-            <Text style={styles.sparkleIcon}>✨</Text>
+            <Ionicons name="sparkles" size={18} color="#facc15" />
           </Animatable.View>
         </View>
 
@@ -385,6 +399,7 @@ const Leaderboard = () => {
 
         <ScrollView
           style={styles.listContainer}
+          contentContainerStyle={{ paddingBottom: Math.max(insets.bottom + 20, 20) }}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -419,7 +434,7 @@ const Leaderboard = () => {
                   <View style={styles.yourPositionContent}>
                     <Text style={styles.yourPositionTitle}>Your Position</Text>
                     <Text style={styles.yourPositionSubtitle}>
-                      🔥 Keep climbing!
+                      Keep climbing
                     </Text>
                   </View>
                   <View style={styles.yourRankBadge}>

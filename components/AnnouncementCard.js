@@ -1,3 +1,4 @@
+// Feed card used to present admin announcements and linked eco-locations.
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React from "react";

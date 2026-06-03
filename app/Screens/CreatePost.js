@@ -1,84 +1,51 @@
+// Screen for selecting an eco-action photo and submitting it for review.
 import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as ImagePicker from "expo-image-picker";
 import React, { useState } from "react";
 import {
-    Alert,
-    Animated,
-    Image,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import LoadingOverlay from "../../components/ui/LoadingOverlay";
+import RestrictionModal from "../../components/ui/RestrictionModal";
 import { BASE_URL } from "../../constants/config";
 
 const CreatePost = ({ visible, onClose, onPostCreated }) => {
-  const categories = [
-    {
-      id: "transportation",
-      name: "Transportation",
-      icon: "directions-bus",
-      color: "#3B82F6",
-      bgColor: "#DBEAFE",
-      description: "Eco-friendly commute & travel",
-    },
-    {
-      id: "plantation",
-      name: "Plantation",
-      icon: "park",
-      color: "#047857",
-      bgColor: "#E6F4F1",
-      description: "Tree planting & gardening",
-    },
-    {
-      id: "recycling",
-      name: "Recycling",
-      icon: "recycling",
-      color: "#8B5CF6",
-      bgColor: "#EDE9FE",
-      description: "Reuse & recycle materials",
-    },
-    {
-      id: "waste-management",
-      name: "Waste Management",
-      icon: "delete-outline",
-      color: "#F59E0B",
-      bgColor: "#FEF3C7",
-      description: "Proper waste disposal",
-    },
-    {
-      id: "energy",
-      name: "Energy Conservation",
-      icon: "bolt",
-      color: "#EF4444",
-      bgColor: "#FEE2E2",
-      description: "Save energy & resources",
-    },
-  ];
-
-  const [selectedCategory, setSelectedCategory] = useState(null);
-  const [showCategorySelection, setShowCategorySelection] = useState(true);
+  const insets = useSafeAreaInsets();
   const [newPostImage, setNewPostImage] = useState(null);
   const [newPostCaption, setNewPostCaption] = useState("");
   const [uploading, setUploading] = useState(false);
-  const [scaleAnims] = useState(categories.map(() => new Animated.Value(1)));
+  const [restrictionMessage, setRestrictionMessage] = useState("");
+  const [showRestrictionModal, setShowRestrictionModal] = useState(false);
+
+  const getStoredIdentifier = async () => {
+    // Posts can be created by either email-authenticated or mobile-authenticated users.
+    const email = await AsyncStorage.getItem("email");
+    const mobile = await AsyncStorage.getItem("mobile");
+    return email || mobile;
+  };
 
   const pickImage = async () => {
     try {
+      // Open the device gallery and return one selected eco-action image.
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ["images"],
-        allowsEditing: true,
-        aspect: [4, 3],
+        allowsEditing: false,
         quality: 0.8,
       });
 
       if (!result.canceled) {
+        // Store the local file URI so the preview and upload can reuse the same asset.
         setNewPostImage(result.assets[0].uri);
       }
     } catch (error) {
@@ -87,68 +54,39 @@ const CreatePost = ({ visible, onClose, onPostCreated }) => {
     }
   };
 
-  const handleCategorySelect = (category) => {
-    setSelectedCategory(category);
-    setShowCategorySelection(false);
-  };
-
-  const handleCategoryPress = (category, index) => {
-    // Animate press
-    Animated.sequence([
-      Animated.timing(scaleAnims[index], {
-        toValue: 0.92,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-      Animated.timing(scaleAnims[index], {
-        toValue: 1,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-    ]).start(() => {
-      handleCategorySelect(category);
-    });
-  };
-
   const handleCreatePost = async () => {
-    if (!newPostImage || !newPostCaption.trim()) {
-      Alert.alert(
-        "Missing Information",
-        "Please add both an image and caption",
-      );
-      return;
-    }
-
-    if (!selectedCategory) {
-      Alert.alert("Missing Category", "Please select a category");
+    if (!newPostImage) {
+      Alert.alert("Missing Image", "Please add a photo to create a post.");
       return;
     }
 
     setUploading(true);
 
     try {
-      const identifier = await AsyncStorage.getItem("mobile"); // This stores both mobile and email
+      const identifier = await getStoredIdentifier();
 
+      if (!identifier) {
+        Alert.alert("Error", "User not logged in");
+        return;
+      }
+
+      // Multipart form data is required because the request mixes text fields and an image file.
       const formData = new FormData();
-
-      // Check if identifier is email or mobile
-      if (identifier.includes("@")) {
+      if (identifier?.includes("@")) {
         formData.append("email", identifier);
       } else {
         formData.append("mobile", identifier);
       }
 
-      formData.append("caption", newPostCaption);
-      formData.append("category", selectedCategory.name);
-      formData.append("categoryId", selectedCategory.id);
-
-      const imageFile = {
+      formData.append("caption", newPostCaption.trim());
+      // The backend expects the uploaded image under the "image" field name.
+      formData.append("image", {
         uri: newPostImage,
         type: "image/jpeg",
         name: `post_${Date.now()}.jpg`,
-      };
-      formData.append("image", imageFile);
+      });
 
+      // This endpoint starts the full backend flow: validation, verification, Cloudinary upload, and MongoDB save.
       const response = await fetch(`${BASE_URL}/posts`, {
         method: "POST",
         body: formData,
@@ -162,17 +100,26 @@ const CreatePost = ({ visible, onClose, onPostCreated }) => {
       if (response.ok && result.success) {
         Alert.alert(
           "Success!",
-          "Your post has been submitted successfully and will be reviewed by our admin team shortly.",
+          "Your post has been submitted and is now waiting for admin review.",
           [{ text: "OK" }],
         );
+        // Reset local state so the next post starts with a clean composer.
         resetForm();
         onPostCreated();
         onClose();
       } else {
-        // Handle verification failure
-        const errorDetail = result.detail || "Failed to create post";
-
-        Alert.alert("Verification Failed", errorDetail, [{ text: "OK" }]);
+        if (response.status === 403) {
+          setRestrictionMessage(
+            result.detail || "Your account is banned from creating posts.",
+          );
+          setShowRestrictionModal(true);
+        } else {
+          Alert.alert(
+            "Upload Failed",
+            result.detail || "Failed to create post.",
+            [{ text: "OK" }],
+          );
+        }
       }
     } catch (error) {
       console.error("Error creating post:", error);
@@ -185,8 +132,6 @@ const CreatePost = ({ visible, onClose, onPostCreated }) => {
   const resetForm = () => {
     setNewPostImage(null);
     setNewPostCaption("");
-    setSelectedCategory(null);
-    setShowCategorySelection(true);
   };
 
   const handleClose = () => {
@@ -194,163 +139,123 @@ const CreatePost = ({ visible, onClose, onPostCreated }) => {
     onClose();
   };
 
+  if (!visible) {
+    return null;
+  }
+
   return (
-    <Modal visible={visible} animationType="slide" transparent={false}>
-      {showCategorySelection ? (
-        // Category Selection Screen - Compact List
-        <View style={styles.categoryModalContainer}>
-          <View style={styles.categoryModalHeader}>
-            <Pressable style={styles.closeButton} onPress={handleClose}>
-              <MaterialIcons name="close" size={24} color="#111827" />
+    <View style={styles.screenOverlay}>
+      <KeyboardAvoidingView
+        style={styles.modalContainer}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+      >
+        <View style={styles.modalContainer}>
+          <View
+            style={[
+              styles.modalHeader,
+              { paddingTop: Math.max(insets.top + 10, 50) },
+            ]}
+          >
+            <Pressable onPress={handleClose}>
+              <MaterialIcons name="close" size={26} color="#111827" />
             </Pressable>
-            <Text style={styles.categoryModalTitle}>Select Category</Text>
-            <View style={{ width: 40 }} />
+            <Text style={styles.modalTitle}>Share Eco-Action</Text>
+            <Pressable
+              onPress={handleCreatePost}
+              disabled={uploading || !newPostImage}
+            >
+              <Text
+                style={[
+                  styles.modalPost,
+                  !newPostImage && styles.modalPostDisabled,
+                ]}
+              >
+                {uploading ? "Posting..." : "Post"}
+              </Text>
+            </Pressable>
           </View>
 
-          <View style={styles.categoryContent}>
-            {categories.map((category, index) => (
-              <Animated.View
-                key={category.id}
-                style={{ transform: [{ scale: scaleAnims[index] }] }}
-              >
-                <Pressable
-                  style={styles.categoryListCard}
-                  onPress={() => handleCategoryPress(category, index)}
-                >
-                  <View
-                    style={[
-                      styles.categoryListIcon,
-                      { backgroundColor: category.bgColor },
-                    ]}
-                  >
-                    <MaterialIcons
-                      name={category.icon}
-                      size={23}
-                      color={category.color}
-                    />
-                  </View>
-                  <View style={styles.categoryListText}>
-                    <Text style={styles.categoryListName}>{category.name}</Text>
-                    <Text style={styles.categoryListDesc}>
-                      {category.description}
-                    </Text>
-                  </View>
-                  <MaterialIcons
-                    name="chevron-right"
-                    size={19}
-                    color="#CBD5E1"
-                  />
-                </Pressable>
-              </Animated.View>
-            ))}
-          </View>
-        </View>
-      ) : (
-        // Create Post Screen
-        <KeyboardAvoidingView
-          style={styles.modalContainer}
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
-        >
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <Pressable onPress={handleClose}>
-                <MaterialIcons name="close" size={26} color="#111827" />
-              </Pressable>
-              <Text style={styles.modalTitle}>Share Eco-Action</Text>
-              <Pressable
-                onPress={handleCreatePost}
-                disabled={uploading || !newPostImage || !newPostCaption.trim()}
-              >
-                <Text
-                  style={[
-                    styles.modalPost,
-                    (!newPostImage || !newPostCaption.trim()) &&
-                      styles.modalPostDisabled,
-                  ]}
-                >
-                  {uploading ? "Posting..." : "Post"}
-                </Text>
-              </Pressable>
+          <ScrollView
+            style={styles.modalContent}
+            contentContainerStyle={{
+              paddingBottom: Math.max(insets.bottom + 20, 20),
+            }}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.helperBanner}>
+              <MaterialIcons name="fact-check" size={18} color="#065F46" />
+              <Text style={styles.helperBannerText}>
+                Add a clear photo. Captions are optional and every post is reviewed by our admin team.
+              </Text>
             </View>
 
-            <ScrollView
-              style={styles.modalContent}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-            >
-              {selectedCategory && (
-                <View
-                  style={[
-                    styles.selectedCategoryBanner,
-                    { backgroundColor: selectedCategory.bgColor },
-                  ]}
+            {newPostImage ? (
+              <View style={styles.imagePreviewContainer}>
+                <Image
+                  source={{ uri: newPostImage }}
+                  style={styles.imagePreview}
+                  resizeMode="contain"
+                />
+                <Pressable
+                  style={styles.removeImageButton}
+                  onPress={() => setNewPostImage(null)}
                 >
-                  <MaterialIcons
-                    name={selectedCategory.icon}
-                    size={20}
-                    color={selectedCategory.color}
-                  />
-                  <Text
-                    style={[
-                      styles.selectedCategoryText,
-                      { color: selectedCategory.color },
-                    ]}
-                  >
-                    {selectedCategory.name}
-                  </Text>
-                </View>
-              )}
-
-              {newPostImage ? (
-                <View style={styles.imagePreviewContainer}>
-                  <Image
-                    source={{ uri: newPostImage }}
-                    style={styles.imagePreview}
-                  />
-                  <Pressable
-                    style={styles.removeImageButton}
-                    onPress={() => setNewPostImage(null)}
-                  >
-                    <MaterialIcons name="close" size={20} color="#fff" />
-                  </Pressable>
-                </View>
-              ) : (
-                <Pressable style={styles.selectImageButton} onPress={pickImage}>
-                  <MaterialIcons
-                    name="add-photo-alternate"
-                    size={48}
-                    color="#047857"
-                  />
-                  <Text style={styles.selectImageText}>Add Photo</Text>
+                  <MaterialIcons name="close" size={20} color="#fff" />
                 </Pressable>
-              )}
-
-              <TextInput
-                style={styles.captionInput}
-                placeholder="Share your eco-action story..."
-                placeholderTextColor="#9CA3AF"
-                multiline
-                value={newPostCaption}
-                onChangeText={setNewPostCaption}
-                maxLength={500}
-              />
-
-              <View style={styles.captionTips}>
-                <MaterialIcons name="info-outline" size={20} color="#6B7280" />
-                <Text style={styles.captionTipsText}>
-                  Share what eco-friendly action you took and inspire others!
-                </Text>
               </View>
-            </ScrollView>
-          </View>
-        </KeyboardAvoidingView>
-      )}
-    </Modal>
+            ) : (
+              <Pressable style={styles.selectImageButton} onPress={pickImage}>
+                <MaterialIcons
+                  name="add-photo-alternate"
+                  size={48}
+                  color="#047857"
+                />
+                <Text style={styles.selectImageText}>Add Photo</Text>
+                <Text style={styles.selectImageSubtext}>
+                  Upload a photo of your eco-friendly action
+                </Text>
+              </Pressable>
+            )}
+
+            <TextInput
+              style={styles.captionInput}
+              placeholder="Add a caption if you want..."
+              placeholderTextColor="#9CA3AF"
+              multiline
+              value={newPostCaption}
+              onChangeText={setNewPostCaption}
+              maxLength={500}
+            />
+          </ScrollView>
+
+          <RestrictionModal
+            visible={showRestrictionModal}
+            title="Posting Disabled"
+            message={restrictionMessage}
+            icon="edit-off"
+            onClose={() => setShowRestrictionModal(false)}
+          />
+
+          <LoadingOverlay
+            visible={uploading}
+            title="Posting"
+            message="Uploading your photo. This may take a moment."
+          />
+        </View>
+      </KeyboardAvoidingView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  screenOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#F8F9FE",
+    zIndex: 999,
+    elevation: 999,
+  },
   modalContainer: {
     flex: 1,
     backgroundColor: "#F8F9FE",
@@ -359,7 +264,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingTop: 50,
     paddingBottom: 14,
     paddingHorizontal: 20,
     backgroundColor: "#fff",
@@ -384,6 +288,24 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 16,
   },
+  helperBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    padding: 12,
+    backgroundColor: "#ECFDF5",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#D1FAE5",
+    marginBottom: 14,
+  },
+  helperBannerText: {
+    flex: 1,
+    fontSize: 12,
+    color: "#065F46",
+    lineHeight: 17,
+    fontWeight: "500",
+  },
   selectImageButton: {
     height: 220,
     backgroundColor: "#fff",
@@ -394,12 +316,19 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 14,
+    paddingHorizontal: 16,
   },
   selectImageText: {
     fontSize: 15,
     fontWeight: "700",
     color: "#047857",
     marginTop: 10,
+  },
+  selectImageSubtext: {
+    marginTop: 6,
+    fontSize: 12,
+    color: "#6B7280",
+    textAlign: "center",
   },
   imagePreviewContainer: {
     position: "relative",
@@ -434,104 +363,6 @@ const styles = StyleSheet.create({
     textAlignVertical: "top",
     marginBottom: 14,
     fontWeight: "500",
-  },
-  captionTips: {
-    flexDirection: "row",
-    gap: 10,
-    padding: 12,
-    backgroundColor: "#ECFDF5",
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#D1FAE5",
-  },
-  captionTipsText: {
-    flex: 1,
-    fontSize: 12,
-    color: "#065F46",
-    lineHeight: 17,
-    fontWeight: "500",
-  },
-  categoryModalContainer: {
-    flex: 1,
-    backgroundColor: "#F8F9FE",
-  },
-  categoryModalHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingTop: 50,
-    paddingBottom: 14,
-    paddingHorizontal: 20,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
-  },
-  closeButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: "#F3F4F6",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  categoryModalTitle: {
-    fontSize: 19,
-    fontWeight: "800",
-    color: "#111827",
-    letterSpacing: -0.3,
-  },
-  categoryContent: {
-    flex: 1,
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    paddingBottom: 10,
-    gap: 7,
-  },
-  categoryListCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    borderRadius: 11,
-    padding: 11,
-    gap: 11,
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
-  },
-  categoryListIcon: {
-    width: 46,
-    height: 46,
-    borderRadius: 11,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  categoryListText: {
-    flex: 1,
-  },
-  categoryListName: {
-    fontSize: 14.5,
-    fontWeight: "700",
-    color: "#111827",
-    marginBottom: 3,
-    letterSpacing: -0.2,
-  },
-  categoryListDesc: {
-    fontSize: 11.5,
-    color: "#6B7280",
-    fontWeight: "500",
-    lineHeight: 15,
-  },
-  selectedCategoryBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    padding: 12,
-    borderRadius: 10,
-    marginBottom: 14,
-  },
-  selectedCategoryText: {
-    fontSize: 15,
-    fontWeight: "700",
-    letterSpacing: -0.2,
   },
 });
 

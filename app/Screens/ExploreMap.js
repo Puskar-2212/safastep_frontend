@@ -1,3 +1,4 @@
+// Eco-location discovery screen with map interaction, filters, and route support.
 import { MaterialIcons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 import { useLocalSearchParams } from "expo-router";
@@ -62,7 +63,7 @@ const ExploreMap = ({
   // Handle incoming selected location from announcement
   useEffect(() => {
     if (initialSelectedLocation) {
-      // Find the full location data from the locations array
+      // If the user comes from an announcement, try to upgrade the minimal payload into a full location record.
       const fullLocation = locations.find(
         (loc) =>
           loc._id === initialSelectedLocation.id ||
@@ -71,7 +72,7 @@ const ExploreMap = ({
 
       if (fullLocation) {
         setSelectedLocation(fullLocation);
-        // Center map on this location
+        // The WebView map listens for postMessage commands to focus a selected place.
         if (webViewRef.current) {
           webViewRef.current.postMessage(
             JSON.stringify({
@@ -84,7 +85,7 @@ const ExploreMap = ({
           );
         }
       } else {
-        // If location not in array yet, create a temporary one from announcement data
+        // Fall back to a temporary marker so deep-linked announcements still open at the correct coordinates.
         setSelectedLocation({
           _id: initialSelectedLocation.id,
           name: initialSelectedLocation.name,
@@ -93,7 +94,6 @@ const ExploreMap = ({
           longitude: initialSelectedLocation.longitude,
           category: initialSelectedLocation.category,
         });
-        // Center map on this location
         if (webViewRef.current) {
           webViewRef.current.postMessage(
             JSON.stringify({
@@ -107,7 +107,7 @@ const ExploreMap = ({
         }
       }
 
-      // Notify parent that location has been viewed
+      // Notify the parent screen so one-time highlight state can be cleared.
       if (onLocationViewed) {
         onLocationViewed();
       }
@@ -152,6 +152,7 @@ const ExploreMap = ({
   }, [params, locations]);
 
   useEffect(() => {
+    // Load the user's position and the eco-location catalogue in parallel when Explore opens.
     getUserLocation();
     fetchLocations();
 
@@ -161,6 +162,7 @@ const ExploreMap = ({
     };
   }, []);
 
+  // Ask for location permission and store the user's current coordinates for map centering and routing.
   const getUserLocation = async () => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -168,7 +170,7 @@ const ExploreMap = ({
         const location = await Location.getCurrentPositionAsync({});
         setUserLocation(location.coords);
       } else {
-        // Default to Kathmandu center
+        // Kathmandu is used as a safe fallback so the map still opens even without permission.
         setUserLocation({ latitude: 27.7172, longitude: 85.324 });
       }
     } catch (error) {
@@ -177,6 +179,7 @@ const ExploreMap = ({
     }
   };
 
+  // Start watching live GPS updates so the route can refresh while the user is moving.
   const startLocationTracking = async () => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -190,7 +193,7 @@ const ExploreMap = ({
 
       setIsTracking(true);
 
-      // Start watching location with high accuracy
+      // Live tracking keeps the route panel updated while the user is moving toward a selected eco-location.
       locationSubscription.current = await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.High,
@@ -201,7 +204,7 @@ const ExploreMap = ({
           const newCoords = location.coords;
           setUserLocation(newCoords);
 
-          // If route is active, recalculate it
+          // Recalculate only when a route is already visible to avoid unnecessary network work.
           if (showRoute && selectedLocation) {
             fetchRouteFromLocation(newCoords, selectedLocation);
           }
@@ -213,6 +216,7 @@ const ExploreMap = ({
     }
   };
 
+  // Stop live GPS updates when the route is cleared or the screen unmounts.
   const stopLocationTracking = () => {
     if (locationSubscription.current) {
       locationSubscription.current.remove();
@@ -221,8 +225,10 @@ const ExploreMap = ({
     setIsTracking(false);
   };
 
+  // Load every eco-location from the backend so the map can render markers from database data.
   const fetchLocations = async () => {
     try {
+      // Eco-locations are backend-managed so admins can update the map without changing the mobile app.
       const response = await fetch(`${BASE_URL}/eco-locations`);
       const result = await response.json();
 
@@ -237,16 +243,19 @@ const ExploreMap = ({
     }
   };
 
+  // Apply the currently selected category chip to the full location list before rendering markers.
   const filteredLocations =
     activeFilter === "all"
       ? locations
       : locations.filter((loc) => loc.category === activeFilter);
 
+  // Return the configured UI color for a location category so cards and markers stay visually consistent.
   const getCategoryColor = (category) => {
     const cat = categories.find((c) => c.id === category);
     return cat ? cat.color : "#047857";
   };
 
+  // Open the selected destination in the device's native maps application for turn-by-turn navigation.
   const openDirections = (location) => {
     const { latitude, longitude, name } = location;
 
@@ -260,6 +269,7 @@ const ExploreMap = ({
     });
   };
 
+  // Calculate straight-line distance between two coordinates using the Haversine formula.
   const calculateDistance = (lat1, lon1, lat2, lon2) => {
     const R = 6371; // Earth's radius in km
     const dLat = ((lat2 - lat1) * Math.PI) / 180;
@@ -279,6 +289,7 @@ const ExploreMap = ({
     return `${distance.toFixed(1)} km`;
   };
 
+  // Generate the full Leaflet HTML document that the WebView will render as the interactive map.
   const generateMapHTML = () => {
     // If there's a selected location from announcement, center on it with higher zoom
     const center = selectedLocation
@@ -437,6 +448,7 @@ const ExploreMap = ({
     `;
   };
 
+  // Receive marker-click messages from Leaflet and sync the selected place back into React Native state.
   const handleWebViewMessage = (event) => {
     try {
       const data = JSON.parse(event.nativeEvent.data);
@@ -450,6 +462,7 @@ const ExploreMap = ({
     }
   };
 
+  // Request a road route from the user's current location to the selected eco-location using OSRM.
   const fetchRoute = async () => {
     if (!userLocation || !selectedLocation) return;
 
@@ -485,6 +498,7 @@ const ExploreMap = ({
     }
   };
 
+  // Recalculate an existing route from updated GPS coordinates so the live route stays current while moving.
   const fetchRouteFromLocation = async (fromLocation, toLocation) => {
     try {
       const start = `${fromLocation.longitude},${fromLocation.latitude}`;
@@ -510,6 +524,7 @@ const ExploreMap = ({
     }
   };
 
+  // Remove the current route from the UI and stop live tracking so the map returns to marker-only mode.
   const clearRoute = () => {
     setShowRoute(false);
     setRouteInfo(null);

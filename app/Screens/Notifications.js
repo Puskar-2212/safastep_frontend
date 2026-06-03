@@ -1,3 +1,4 @@
+// In-app notification center for post, challenge, and moderation updates.
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
@@ -11,10 +12,12 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BASE_URL } from "../config";
 
 export default function Notifications() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -108,7 +111,7 @@ export default function Notifications() {
 
   const getNotificationIcon = (type) => {
     // All notifications use the same bell icon with neutral color
-    return { name: "notifications-outline", color: "#666" };
+    return { name: "notifications-outline", color: "#0C8A4B" };
   };
 
   const formatTime = (timestamp) => {
@@ -168,7 +171,7 @@ export default function Notifications() {
 
         <View style={styles.contentContainer}>
           <Text style={styles.title}>
-            {item.title.replace(/[🎉❌❤️🏆📢]/g, "").trim()}
+            {item.title.trim()}
           </Text>
           <Text style={styles.message}>{item.message}</Text>
           <Text style={styles.time}>{formatTime(item.createdAt)}</Text>
@@ -182,19 +185,24 @@ export default function Notifications() {
   if (loading) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#4CAF50" />
+        <ActivityIndicator size="large" color="#0C8A4B" />
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <View
+        style={[
+          styles.header,
+          { paddingTop: Math.max(insets.top + 12, 50) },
+        ]}
+      >
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}
         >
-          <Ionicons name="arrow-back" size={24} color="#333333ff" />
+          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Notifications</Text>
         <View style={styles.headerActions}>
@@ -214,7 +222,7 @@ export default function Notifications() {
           <Ionicons name="notifications-off-outline" size={80} color="#ccc" />
           <Text style={styles.emptyText}>No notifications yet</Text>
           <Text style={styles.emptySubtext}>
-            You'll see notifications here when something happens
+            You&apos;ll see notifications here when something happens
           </Text>
         </View>
       ) : (
@@ -222,12 +230,15 @@ export default function Notifications() {
           data={notifications}
           renderItem={renderNotification}
           keyExtractor={(item) => item._id}
-          contentContainerStyle={styles.listContainer}
+          contentContainerStyle={[
+            styles.listContainer,
+            { paddingBottom: Math.max(insets.bottom + 12, 12) },
+          ]}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              colors={["#4CAF50"]}
+              colors={["#0C8A4B"]}
             />
           }
         />
@@ -239,7 +250,7 @@ export default function Notifications() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: "#F8F9FA",
   },
   centerContainer: {
     flex: 1,
@@ -250,22 +261,30 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    backgroundColor: "#0C8A4B",
+    shadowColor: "#0C8A4B",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 8,
     paddingTop: 50,
   },
   backButton: {
-    padding: 8,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
+    fontWeight: "800",
+    color: "#FFFFFF",
     flex: 1,
-    marginLeft: 8,
+    marginLeft: 12,
   },
   headerActions: {
     flexDirection: "row",
@@ -273,38 +292,42 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   headerButton: {
-    padding: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: "rgba(255, 255, 255, 0.18)",
   },
   headerButtonText: {
-    color: "#4CAF50",
-    fontSize: 14,
+    color: "#FFFFFF",
+    fontSize: 13,
     fontWeight: "600",
   },
   listContainer: {
-    padding: 12,
+    padding: 16,
   },
   notificationCard: {
     flexDirection: "row",
     backgroundColor: "#fff",
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 2,
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.06,
+    shadowRadius: 14,
+    elevation: 4,
   },
   unreadCard: {
-    backgroundColor: "#F0F9FF",
-    borderLeftWidth: 3,
-    borderLeftColor: "#4CAF50",
+    backgroundColor: "#F3FBF8",
+    borderColor: "#BFE7D1",
   },
   iconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#F5F5F5",
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: "#E8F7F0",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
@@ -313,26 +336,26 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   title: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#333",
-    marginBottom: 2,
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#1E293B",
+    marginBottom: 4,
   },
   message: {
     fontSize: 13,
-    color: "#666",
-    marginBottom: 4,
-    lineHeight: 18,
+    color: "#64748B",
+    marginBottom: 6,
+    lineHeight: 19,
   },
   time: {
-    fontSize: 11,
-    color: "#999",
+    fontSize: 12,
+    color: "#94A3B8",
   },
   unreadDot: {
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: "#4CAF50",
+    backgroundColor: "#0C8A4B",
     marginLeft: 8,
     alignSelf: "center",
   },
@@ -344,14 +367,14 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
+    fontWeight: "800",
+    color: "#1E293B",
     marginTop: 16,
     marginBottom: 8,
   },
   emptySubtext: {
     fontSize: 14,
-    color: "#999",
+    color: "#64748B",
     textAlign: "center",
   },
 });
